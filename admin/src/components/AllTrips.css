@@ -1,0 +1,156 @@
+.page-header-flex {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 2.5rem;
+    gap: 2rem;
+}
+
+.filter-chips {
+    display: flex;
+    gap: 0.75rem;
+    overflow-x: auto;
+    padding-bottom: 0.5rem;
+}
+
+.filter-chip {
+    padding: 0.6rem 1.25rem;
+    border-radius: 2rem;
+    border: 1px solid #eee;
+    background: white;
+    color: #666;
+    font-weight: 700;
+    font-size: 0.85rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+}
+
+.filter-chip.active {
+    background: #FFD700;
+    border-color: #FFD700;
+    color: #000;
+}
+
+.trips-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.5rem;
+}
+
+.trip-admin-card {
+    background: white;
+    border: 1px solid #eee;
+    border-radius: 1.25rem;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.trip-status-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.status-badge {
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    padding: 0.25rem 0.6rem;
+    border-radius: 2rem;
+    background: #f0f0f0;
+}
+
+.status-badge.active {
+    background: #e6f7ff;
+    color: #1890ff;
+}
+
+.status-badge.completed {
+    background: #f6ffed;
+    color: #52c41a;
+}
+
+.status-badge.cancelled {
+    background: #fff1f0;
+    color: #f5222d;
+}
+
+.trip-id {
+    font-size: 0.75rem;
+    color: #999;
+    font-family: monospace;
+}
+
+.trip-route-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    position: relative;
+}
+
+.route-loc {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.loc-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.loc-dot.from {
+    background: #ccc;
+}
+
+.loc-dot.to {
+    background: #FFD700;
+}
+
+.route-line-v {
+    position: absolute;
+    left: 3px;
+    top: 12px;
+    bottom: 12px;
+    width: 2px;
+    background: #f0f0f0;
+}
+
+.trip-details-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    padding-top: 1rem;
+    border-top: 1px solid #f8f9fa;
+}
+
+.t-detail {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+    color: #666;
+    font-weight: 500;
+}
+
+.t-detail.earnings {
+    grid-column: span 2;
+    justify-content: flex-end;
+    font-weight: 800;
+    color: #000;
+    font-size: 0.9rem;
+}
+
+@media (max-width: 768px) {
+    .page-header-flex {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+}

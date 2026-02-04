@@ -1,0 +1,142 @@
+.welcome-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background-color: white;
+    position: relative;
+    overflow: hidden;
+    font-family: 'Inter', sans-serif;
+}
+
+.content-area {
+    flex: 1;
+    padding: 0 40px;
+    position: relative;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+}
+
+.welcome-back-btn {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    background: rgba(255, 255, 255, 0.9);
+    border: 2px solid #FACC15;
+    border-radius: 50%;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    z-index: 20;
+}
+
+.welcome-back-btn:hover {
+    background: #FACC15;
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(250, 204, 21, 0.3);
+}
+
+.welcome-back-btn:active {
+    transform: scale(0.95);
+}
+
+.welcome-back-btn svg {
+    color: #000;
+    stroke-width: 2.5;
+}
+
+.welcome-title {
+    font-size: 48px;
+    font-weight: 700;
+    line-height: 1.1;
+    color: #000;
+    margin-top: 100px;
+    text-align: left;
+    max-width: 60%;
+    letter-spacing: -1px;
+}
+
+@media (max-width: 480px) {
+    .welcome-title {
+        font-size: 36px;
+        max-width: 80%;
+    }
+}
+
+
+.journey-line-container {
+    position: absolute;
+    top: -50px;
+    right: 80px;
+    height: 59%;
+    width: 2px;
+}
+
+.vertical-line {
+    width: 1px;
+    height: 100%;
+    background-color: #888;
+    margin: 0 auto;
+}
+
+.car-wrapper {
+    position: absolute;
+    top: 60%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(180deg);
+}
+
+.journey-car {
+    width: 35px;
+    height: auto;
+    display: block;
+}
+
+
+.diagonal-line {
+    position: absolute;
+    width: 199%;
+    height: 1px;
+    background-color: #888;
+    bottom: 30%;
+    right: -20%;
+    transform: rotate(-25deg);
+    pointer-events: none;
+    z-index: 0;
+}
+
+
+.get-started-btn {
+    margin-top: 40px;
+    background-color: #FACC15;
+    color: #000;
+    border: none;
+    padding: 16px 32px;
+    border-radius: 12px;
+    font-size: 18px;
+    font-weight: 500;
+    cursor: pointer;
+    width: fit-content;
+    box-shadow: none;
+}
+
+
+.bottom-wave {
+    position: absolute;
+    bottom: 0px;
+    left: 100;
+    width: 300%;
+    line-height: 20;
+    z-index: 40;
+}
+
+.wave-svg {
+    display: flex;
+    width: 100%;
+    height: auto;
+}

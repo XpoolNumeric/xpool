@@ -1,0 +1,266 @@
+.search-trips-container {
+    min-height: 100vh;
+    background-color: var(--bg-light);
+    display: flex;
+    flex-direction: column;
+}
+
+/* Header */
+.search-header {
+    background: var(--bg-white);
+    padding: 1.25rem 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: var(--shadow-sm);
+}
+
+.search-header .back-btn {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    background: transparent;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    color: var(--text-dark);
+}
+
+.search-header .back-btn:hover {
+    background-color: var(--bg-light);
+}
+
+.search-header h1 {
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: var(--text-dark);
+    margin: 0;
+}
+
+/* Results Section */
+.results-section {
+    flex: 1;
+    padding: 1.25rem;
+    padding-bottom: 5rem;
+}
+
+.results-header {
+    margin-bottom: 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.results-header h2 {
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* Loading & Empty States */
+.search-trips-container .loading-state,
+.search-trips-container .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 5rem 2rem;
+    text-align: center;
+}
+
+.search-trips-container .spinner {
+    width: 3rem;
+    height: 3rem;
+    border: 4px solid var(--border-light);
+    border-top-color: var(--primary-yellow);
+    border-radius: 50%;
+    animation: spin 1s cubic-bezier(0.53, 0.21, 0.29, 0.67) infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.search-trips-container .empty-state svg {
+    color: var(--primary-yellow);
+    margin-bottom: 1.5rem;
+    opacity: 0.4;
+}
+
+.search-trips-container .empty-state h3 {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--text-dark);
+    margin: 0 0 0.5rem;
+}
+
+.search-trips-container .empty-state p {
+    font-size: 1rem;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+/* Results List */
+.results-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.trip-result-card {
+    background: var(--bg-white);
+    border-radius: 1.25rem;
+    padding: 1.5rem;
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--border-light);
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.trip-result-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--primary-yellow);
+}
+
+/* Card Header */
+.trip-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1.25rem;
+}
+
+.driver-info {
+    display: flex;
+    gap: 1rem;
+}
+
+.driver-avatar {
+    width: 3rem;
+    height: 3rem;
+    background: var(--bg-light);
+    border-radius: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--primary-yellow);
+    font-weight: 800;
+    font-size: 1.1rem;
+    border: 1.5px solid var(--border-light);
+}
+
+.driver-info h3 {
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--text-dark);
+    margin: 0 0 0.25rem;
+}
+
+.vehicle-type {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-weight: 700;
+    text-transform: capitalize;
+}
+
+.price {
+    font-size: 1.25rem;
+    font-weight: 900;
+    color: #22c55e;
+    text-align: right;
+}
+
+.price span {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-top: 0.1rem;
+}
+
+/* Route */
+.trip-route {
+    position: relative;
+    padding-left: 0.5rem;
+    margin-bottom: 1.25rem;
+}
+
+.route-point {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.route-point .dot {
+    width: 0.75rem;
+    height: 0.75rem;
+    border-radius: 50%;
+    border: 2px solid white;
+    box-shadow: var(--shadow-sm);
+    flex-shrink: 0;
+}
+
+.route-point.from .dot {
+    background: var(--status-success);
+}
+
+.route-point.to .dot {
+    background: var(--status-error);
+}
+
+.route-point span {
+    font-size: 0.95rem;
+    color: var(--text-dark);
+    font-weight: 700;
+}
+
+.route-line {
+    width: 2px;
+    height: 1.25rem;
+    background: var(--border-light);
+    margin-left: 0.32rem;
+}
+
+/* Meta */
+.trip-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    padding-top: 1.25rem;
+    border-top: 1px dashed var(--border-light);
+}
+
+.meta-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.meta-item svg {
+    color: var(--primary-yellow);
+}
+
+.meta-item.seats {
+    background-color: #f0fdf4;
+    color: #16a34a;
+    padding: 0.25rem 0.75rem;
+    border-radius: 0.75rem;
+    font-weight: 800;
+}

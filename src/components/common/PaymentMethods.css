@@ -1,0 +1,75 @@
+.payment-methods-container {
+    height: 100vh;
+    background-color: #f8f9fa;
+    display: flex;
+    flex-direction: column;
+}
+
+.payment-list {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    flex: 1;
+    overflow-y: auto;
+}
+
+.payment-card {
+    background: white;
+    padding: 20px;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    border: 1px solid #f1f1f1;
+    transition: transform 0.2s;
+}
+
+.payment-card:active {
+    transform: scale(0.99);
+}
+
+.card-icon-wrapper {
+    width: 48px;
+    height: 48px;
+    background: #fdf6b2;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #9f580a;
+}
+
+.payment-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.method-name {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #1f2937;
+}
+
+.method-desc {
+    font-size: 0.8rem;
+    color: #6b7280;
+}
+
+.add-method-btn {
+    margin: 24px;
+    padding: 18px;
+    background: black;
+    color: white;
+    border: none;
+    border-radius: 16px;
+    font-weight: 700;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}

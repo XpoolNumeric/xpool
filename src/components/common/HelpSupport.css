@@ -1,0 +1,49 @@
+.help-container {
+    height: 100vh;
+    background-color: white;
+    display: flex;
+    flex-direction: column;
+}
+
+.help-content {
+    padding: 24px;
+    flex: 1;
+    overflow-y: auto;
+}
+
+.faq-section h3 {
+    font-size: 1.1rem;
+    margin-bottom: 16px;
+    color: #111;
+}
+
+.faq-item {
+    border-bottom: 1px solid #f0f0f0;
+    padding: 16px 0;
+}
+
+.faq-question {
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: #333;
+}
+
+.faq-answer {
+    font-size: 0.9rem;
+    color: #666;
+    line-height: 1.5;
+}
+
+.contact-btn {
+    margin: 24px;
+    padding: 16px;
+    background: #f3f4f6;
+    border: none;
+    border-radius: 12px;
+    font-weight: 600;
+    color: #333;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}

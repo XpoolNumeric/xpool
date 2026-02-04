@@ -1,0 +1,608 @@
+.booking-requests-container {
+    min-height: 100dvh;
+    background-color: #f8fafc;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Header */
+.requests-header {
+    background: white;
+    padding: 1.25rem 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+}
+
+.requests-header .back-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    background: #f1f5f9;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    color: #111827;
+}
+
+.requests-header .back-btn:active {
+    transform: scale(0.9);
+}
+
+.requests-header h1 {
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: #111827;
+    margin: 0;
+}
+
+/* Filter Tabs */
+.booking-requests-container .filter-tabs {
+    background: white;
+    padding: 1rem 1.5rem;
+    display: flex;
+    gap: 0.85rem;
+    overflow-x: auto;
+    border-bottom: 1px solid #f1f5f9;
+    scrollbar-width: none;
+}
+
+.booking-requests-container .filter-tabs::-webkit-scrollbar {
+    display: none;
+}
+
+.booking-requests-container .filter-tab {
+    padding: 0.7rem 1.25rem;
+    border-radius: 1.25rem;
+    border: 2px solid #f1f5f9;
+    background: #f8fafc;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #64748b;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    white-space: nowrap;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.booking-requests-container .filter-tab:active {
+    transform: scale(0.95);
+}
+
+.booking-requests-container .filter-tab.active {
+    background: #facc15;
+    border-color: #facc15;
+    color: #111827;
+    box-shadow: 0 4px 12px rgba(250, 204, 21, 0.2);
+}
+
+.booking-requests-container .filter-tab .count {
+    background: rgba(0, 0, 0, 0.05);
+    padding: 2px 8px;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    font-weight: 800;
+}
+
+.booking-requests-container .filter-tab.active .count {
+    background: rgba(255, 255, 255, 0.4);
+}
+
+/* Content */
+.requests-content {
+    flex: 1;
+    padding: 1.5rem;
+    padding-bottom: 5rem;
+    overflow-y: auto;
+}
+
+/* Loading & Empty States */
+.booking-requests-container .loading-state,
+.booking-requests-container .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 5rem 2rem;
+    text-align: center;
+}
+
+.booking-requests-container .spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid #f1f5f9;
+    border-top-color: #facc15;
+    border-radius: 50%;
+    animation: spin 1s cubic-bezier(0.53, 0.21, 0.29, 0.67) infinite;
+    margin-bottom: 1.5rem;
+}
+
+.booking-requests-container .empty-state svg {
+    color: #facc15;
+    margin-bottom: 1.5rem;
+    opacity: 0.2;
+}
+
+.booking-requests-container .empty-state h3 {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #111827;
+    margin: 0 0 0.5rem;
+}
+
+.booking-requests-container .empty-state p {
+    font-size: 1rem;
+    color: #64748b;
+    font-weight: 600;
+}
+
+/* Requests List */
+.requests-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.request-card {
+    background: white;
+    border-radius: 1.5rem;
+    padding: 1.5rem;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04);
+    border: 1px solid rgba(0, 0, 0, 0.02);
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    position: relative;
+}
+
+.request-card:active {
+    transform: scale(0.98);
+}
+
+/* Passenger Info */
+.passenger-info {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    margin-bottom: 1.25rem;
+    padding-bottom: 1.25rem;
+    border-bottom: 1px solid #f8fafc;
+}
+
+.passenger-avatar {
+    width: 52px;
+    height: 52px;
+    background: #f1f5f9;
+    border-radius: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #facc15;
+    flex-shrink: 0;
+}
+
+.passenger-details {
+    flex: 1;
+}
+
+.passenger-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 2px;
+}
+
+.passenger-details h3 {
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: #111827;
+    margin: 0;
+}
+
+.passenger-rating {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: #fffbeb;
+    padding: 0.25rem 0.6rem;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 800;
+    color: #b45309;
+}
+
+.seats-requested {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #64748b;
+}
+
+.status-badge {
+    font-size: 0.65rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    padding: 0.35rem 0.75rem;
+    border-radius: 8px;
+    letter-spacing: 0.5px;
+}
+
+.status-badge.pending {
+    background: #fffbeb;
+    color: #d97706;
+}
+
+.status-badge.approved {
+    background: #ecfdf5;
+    color: #059669;
+}
+
+.status-badge.rejected {
+    background: #fef2f2;
+    color: #dc2626;
+}
+
+/* Trip Info */
+.trip-info {
+    margin-bottom: 1.5rem;
+}
+
+.trip-info .route {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 1rem;
+    color: #111827;
+    font-weight: 800;
+    margin-bottom: 0.75rem;
+}
+
+.trip-info .from-icon {
+    color: #059669;
+}
+
+.trip-info .arrow {
+    color: #94a3b8;
+    font-weight: 400;
+}
+
+.trip-info .meta {
+    display: flex;
+    gap: 1.25rem;
+    flex-wrap: wrap;
+}
+
+.trip-info .meta span {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #64748b;
+}
+
+.trip-info .meta svg {
+    color: #facc15;
+}
+
+/* Payment Badge */
+.payment-badge {
+    margin-top: 0.75rem;
+}
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.75rem;
+    border-radius: 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.badge.online {
+    background: #eff6ff;
+    color: #2563eb;
+}
+
+.badge.cod {
+    background: #ecfdf5;
+    color: #059669;
+}
+
+/* Request Message */
+.request-message {
+    background: #f8fafc;
+    border-radius: 1rem;
+    padding: 1rem 1.25rem;
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+    border: 1px solid #f1f5f9;
+}
+
+.request-message svg {
+    color: #facc15;
+    flex-shrink: 0;
+}
+
+.request-message p {
+    font-size: 0.9rem;
+    color: #374151;
+    margin: 0;
+    font-weight: 600;
+    font-style: italic;
+    line-height: 1.5;
+}
+
+/* Actions */
+.request-actions {
+    display: flex;
+    gap: 1rem;
+}
+
+.action-btn {
+    flex: 1;
+    padding: 1.15rem;
+    border-radius: 1.25rem;
+    font-size: 1rem;
+    font-weight: 800;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    border: none;
+}
+
+.action-btn:active {
+    transform: scale(0.95);
+}
+
+.action-btn.reject {
+    background: #f1f5f9;
+    color: #4b5563;
+}
+
+.action-btn.approve {
+    background: #facc15;
+    color: #111827;
+    box-shadow: 0 4px 12px rgba(250, 204, 21, 0.2);
+}
+
+/* Chat Overlay */
+.chat-overlay-container {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background-color: white;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (max-width: 480px) {
+    .request-actions {
+        flex-direction: column-reverse;
+        gap: 0.75rem;
+    }
+}
+/* Add these styles to your existing BookingRequests.css */
+
+/* Header Stats */
+.header-stats {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.stat {
+    padding: 0.35rem 0.75rem;
+    border-radius: 2rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
+}
+
+.stat.pending {
+    background: rgba(234, 179, 8, 0.2);
+    border-color: rgba(234, 179, 8, 0.3);
+}
+
+.stat.approved {
+    background: rgba(34, 197, 94, 0.2);
+    border-color: rgba(34, 197, 94, 0.3);
+}
+
+/* Status Section */
+.status-section {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.approved-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0.75rem;
+    background: #ecfdf5;
+    color: #059669;
+    border-radius: 8px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    border: 1px solid #a7f3d0;
+}
+
+/* Passenger Contact */
+.passenger-contact {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.passenger-phone-link {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #3b82f6;
+    text-decoration: none;
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+    background: rgba(59, 130, 246, 0.1);
+    transition: all 0.2s ease;
+    width: fit-content;
+}
+
+.passenger-phone-link:hover {
+    background: rgba(59, 130, 246, 0.2);
+    color: #2563eb;
+}
+
+/* Request Card States */
+.request-card.pending {
+    border-left: 4px solid #facc15;
+    background: linear-gradient(to right, white, #fffbeb 5%, white);
+}
+
+.request-card.approved {
+    border-left: 4px solid #22c55e;
+    background: linear-gradient(to right, white, #f0fdf4 5%, white);
+}
+
+.request-card.rejected {
+    border-left: 4px solid #ef4444;
+    background: linear-gradient(to right, white, #fef2f2 5%, white);
+}
+
+/* Driver Info Note */
+.driver-info-note {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    background: #eff6ff;
+    border-radius: 0.75rem;
+    border: 1px solid #bfdbfe;
+    margin-top: 1rem;
+    animation: fadeIn 0.5s ease-out;
+}
+
+.info-icon {
+    font-size: 1.25rem;
+    flex-shrink: 0;
+}
+
+.driver-info-note p {
+    margin: 0;
+    font-size: 0.85rem;
+    color: #1e40af;
+    font-weight: 600;
+}
+
+.driver-info-note strong {
+    font-weight: 800;
+    color: #1e3a8a;
+}
+
+/* COD Badge */
+.badge.cod {
+    background: #ecfdf5;
+    color: #059669;
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Toast Customization */
+:global(.toast-success) {
+    background: linear-gradient(135deg, #22c55e, #16a34a) !important;
+    color: white !important;
+    font-weight: 700 !important;
+    border-radius: 1rem !important;
+    box-shadow: 0 10px 25px rgba(34, 197, 94, 0.3) !important;
+}
+
+:global(.toast-error) {
+    background: linear-gradient(135deg, #ef4444, #dc2626) !important;
+    color: white !important;
+    font-weight: 700 !important;
+    border-radius: 1rem !important;
+    box-shadow: 0 10px 25px rgba(239, 68, 68, 0.3) !important;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+    .requests-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+        padding: 1rem;
+    }
+    
+    .requests-header h1 {
+        order: -1;
+        align-self: center;
+    }
+    
+    .header-stats {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .passenger-info {
+        flex-wrap: wrap;
+    }
+    
+    .passenger-contact-actions {
+        margin-left: auto;
+    }
+}
+
+@media (max-width: 480px) {
+    .status-section {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .passenger-contact {
+        flex-direction: column;
+    }
+    
+    .passenger-phone-link {
+        width: 100%;
+        justify-content: center;
+    }
+}

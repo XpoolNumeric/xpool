@@ -1,0 +1,188 @@
+.onboarding-container {
+    height: 100%;
+    width: 100%;
+    background: linear-gradient(180deg, #ffffff 0%, #ffffff 100%);
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+}
+
+
+.onboarding-header {
+    display: flex;
+    justify-content: flex-end;
+    padding: 20px 22px;
+    z-index: 10;
+}
+
+.skip-button {
+    background: rgba(255, 255, 255, 0.3);
+    border: none;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-weight: 600;
+    cursor: pointer;
+    color: #000;
+}
+
+
+.onboarding-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    justify-content: flex-start;
+    padding-top: 20px;
+    z-index: 10;
+}
+
+.app-title {
+    font-size: 28px;
+    font-weight: 900;
+    margin-bottom: 2vh;
+    letter-spacing: 2px;
+}
+
+
+.image-container {
+    height: 35%;
+    max-height: 300px;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 2vh;
+}
+
+.slide-image {
+    height: 100%;
+    width: auto;
+    max-width: 90%;
+    object-fit: contain;
+}
+
+
+.slide-content-text {
+    padding: 0 30px;
+    margin-top: 10px;
+}
+
+.slide-title {
+    font-size: 26px;
+    font-weight: 800;
+    margin-bottom: 10px;
+}
+
+.slide-description {
+    font-size: 16px;
+    color: #333;
+}
+
+
+.onboarding-footer {
+    padding: 0;
+    text-align: center;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: auto;
+    width: 100%;
+    height: 25vh;
+    min-height: 200px;
+}
+
+@media (max-height: 700px) {
+    .onboarding-footer {
+        min-height: 150px;
+        height: 20vh;
+    }
+
+    .continue-button {
+        margin-top: 1rem;
+        height: 50px;
+    }
+}
+
+
+.controls-wrapper {
+    position: absolute;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    max-width: 400px;
+}
+
+
+.dots-container {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.dot {
+    width: 10px;
+    height: 10px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 50%;
+    transition: 0.3s;
+}
+
+.dot.active {
+    width: 30px;
+    border-radius: 5px;
+    background: black;
+}
+
+.continue-button {
+    width: 80%;
+    max-width: 330px;
+    height: 60px;
+    padding: 0;
+    margin-top: 2rem;
+    /* Add margin to separate from text */
+    background: black;
+    color: white;
+    border-radius: 16px;
+    font-size: 18px;
+    font-weight: 700;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: none;
+    /* Explicitly remove shadow */
+    /* transition: transform 0.2s;  Optional goodness */
+}
+
+/* Add active state for touch feedback */
+.continue-button:active {
+    transform: scale(0.98);
+}
+
+
+.bottom-image-container {
+    position: absolute;
+    bottom: 0;
+    width: 100%;
+    pointer-events: none;
+    z-index: 0;
+    display: flex;
+    align-items: flex-end;
+}
+
+.bottom-image {
+    width: 100%;
+    height: auto;
+    max-height: 25vh;
+    object-fit: cover;
+}

@@ -1,0 +1,333 @@
+.role-selection-container {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    background-color: #fff;
+    padding: 20px;
+    background: linear-gradient(180deg, #FFFFFF 0%, #FAFAFA 100%);
+    align-items: center;
+    justify-content: center;
+}
+
+.role-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 20px;
+    margin-bottom: 20px;
+    width: 100%;
+    max-width: 600px;
+}
+
+.role-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    max-width: 600px;
+    /* Limit width on desktop */
+    margin: 0 auto;
+    /* Center on desktop */
+    width: 100%;
+}
+
+.role-title {
+    font-size: 28px;
+    font-weight: 800;
+    margin-bottom: 40px;
+    text-align: center;
+    color: #1a1a1a;
+    width: 100%;
+    padding: 0 20px;
+    box-sizing: border-box;
+    opacity: 0;
+    animation: fadeInDown 0.6s ease-out forwards;
+}
+
+.role-options {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.role-card {
+    display: flex;
+    align-items: center;
+    padding: 24px;
+    border-radius: 20px;
+    border: 1px solid #f0f0f0;
+    background: #fff;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    opacity: 0;
+    animation: fadeInUp 0.6s ease-out forwards;
+}
+
+.role-card:nth-child(1) {
+    animation-delay: 0.2s;
+}
+
+.role-card:nth-child(2) {
+    animation-delay: 0.4s;
+}
+
+.role-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.06);
+}
+
+.role-card:active {
+    transform: scale(0.98);
+}
+
+.role-card.selected {
+    border-color: var(--primary-yellow);
+    background-color: #FFFDE7;
+    /* Very light yellow */
+    box-shadow: 0 8px 25px rgba(255, 215, 0, 0.15);
+}
+
+.role-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-right: 20px;
+    transition: transform 0.3s ease;
+}
+
+.role-card:hover .role-icon {
+    transform: scale(1.1);
+}
+
+.passenger-icon {
+    background-color: #FFF9C4;
+    color: #FBC02D;
+}
+
+.driver-icon {
+    background-color: #E8F5E9;
+    color: #43A047;
+}
+
+.role-icon svg {
+    width: 32px;
+    height: 32px;
+}
+
+.role-info {
+    flex: 1;
+    text-align: left;
+}
+
+.role-info h3 {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    color: #222;
+}
+
+.role-info p {
+    font-size: 15px;
+    color: #666;
+    font-weight: 500;
+}
+
+.role-radio {
+    margin-left: 15px;
+}
+
+.radio-outer {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 2px solid #ddd;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: all 0.2s ease;
+}
+
+.role-card.selected .radio-outer {
+    border-color: #000;
+    background-color: #fff;
+}
+
+.radio-inner {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background-color: #fffb04;
+    animation: zoomIn 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.role-footer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-bottom: 40px;
+    width: 100%;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.continue-button {
+    background-color: var(--primary-yellow);
+    color: #000;
+    padding: 18px 0;
+    border-radius: 16px;
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 24px;
+    width: 100%;
+    box-shadow: 0 10px 25px rgba(255, 215, 0, 0.3);
+    transition: all 0.2s ease;
+    opacity: 0;
+    animation: fadeInUp 0.6s ease-out 0.6s forwards;
+}
+
+.continue-button:hover {
+    box-shadow: 0 15px 35px rgba(255, 215, 0, 0.4);
+    transform: translateY(-2px);
+}
+
+.continue-button:active {
+    transform: scale(0.98);
+    box-shadow: 0 5px 15px rgba(255, 215, 0, 0.2);
+}
+
+.footer-note {
+    font-size: 13px;
+    color: #999;
+    text-align: center;
+    font-weight: 500;
+    opacity: 0;
+    animation: fadeIn 0.6s ease-out 0.8s forwards;
+}
+
+@media (max-width: 480px) {
+    .role-selection-container {
+        padding: 16px;
+        justify-content: flex-start;
+        padding-top: 60px;
+    }
+
+    .role-header {
+        padding-top: 10px;
+        margin-bottom: 10px;
+    }
+
+    .role-title {
+        font-size: 24px;
+        margin-bottom: 32px;
+        padding: 0 16px;
+        line-height: 1.3;
+    }
+
+    .role-card {
+        padding: 16px;
+        border-radius: 16px;
+        gap: 12px;
+    }
+
+    .role-icon {
+        width: 48px;
+        height: 48px;
+        margin-right: 0;
+        /* Using gap instead */
+    }
+
+    .role-icon svg {
+        width: 24px;
+        height: 24px;
+    }
+
+    .role-info h3 {
+        font-size: 17px;
+        margin-bottom: 2px;
+    }
+
+    .role-info p {
+        font-size: 13px;
+    }
+
+    .role-radio {
+        margin-left: 0;
+    }
+
+    .radio-outer {
+        width: 22px;
+        height: 22px;
+    }
+
+    .radio-inner {
+        width: 12px;
+        height: 12px;
+    }
+
+    .role-footer {
+        padding-bottom: 20px;
+    }
+
+    .continue-button {
+        padding: 16px 0;
+        font-size: 16px;
+        border-radius: 14px;
+        margin-bottom: 16px;
+    }
+
+    .footer-note {
+        font-size: 12px;
+    }
+}
+
+@keyframes fadeInDown {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes zoomIn {
+    from {
+        opacity: 0;
+        transform: scale(0);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
