@@ -1,15 +1,10 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Calendar, Car, Bike, Search, WifiOff } from 'lucide-react';
+import { ArrowLeft, Calendar, Car, Bike, Search } from 'lucide-react';
 import { supabase } from '../../../supabaseClient';
 import toast from 'react-hot-toast';
-import { APIProvider } from '@vis.gl/react-google-maps';
-import LocationInput from '../../common/LocationInput';
-import { isOnline, waitForNetwork, isWebView, getSafeSession } from '../../../utils/webViewHelper';
 import '../css/SearchTrips.css';
 
-const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-
-const SearchTrips = ({ onBack, onTripSelect, searchParams }) => {
+const SearchTrips = ({ onBack, onTripSelect, searchParams, session }) => {
     const [searchData, setSearchData] = useState({
         fromLocation: searchParams?.from || '',
         toLocation: searchParams?.to || '',
@@ -20,14 +15,6 @@ const SearchTrips = ({ onBack, onTripSelect, searchParams }) => {
     const [results, setResults] = useState([]);
     const [loading, setLoading] = useState(false);
     const [hasSearched, setHasSearched] = useState(false);
-
-    const handleChange = (e) => {
-        const { name, value } = e.target;
-        setSearchData(prev => ({
-            ...prev,
-            [name]: value
-        }));
-    };
 
     // Auto-search on mount if params are provided
     React.useEffect(() => {
@@ -49,17 +36,25 @@ const SearchTrips = ({ onBack, onTripSelect, searchParams }) => {
         setHasSearched(true);
 
         try {
-            console.log('Invoking find-rides function...');
+            // Get current session for auth token
+            const { data: { session: currentSession } } = await supabase.auth.getSession();
 
-            const { data, error } = await supabase.functions.invoke('find-rides', {
+            if (!currentSession) {
+                toast.error('Please log in again');
+                setLoading(false);
+                return;
+            }
+
+            console.log('Invoking search-trips function...');
+
+            const { data, error } = await supabase.functions.invoke('search-trips', {
                 body: {
-                    from_location: searchData.fromLocation,
-                    to_location: searchData.toLocation,
-                    travel_date: searchData.travelDate || '',
-                    seats_required: 1,
-                    vehicle_type: searchData.vehiclePreference || 'any',
+                    fromLocation: searchData.fromLocation,
+                    toLocation: searchData.toLocation,
+                    travelDate: searchData.travelDate || '',
+                    vehiclePreference: searchData.vehiclePreference || 'any',
                     page: 1,
-                    limit: 20
+                    pageSize: 20
                 }
             });
 
@@ -72,31 +67,14 @@ const SearchTrips = ({ onBack, onTripSelect, searchParams }) => {
                 throw new Error(data.error || 'Search operation failed');
             }
 
-            // Transform to your UI format
-            const formattedTrips = data.data.map(trip => ({
-                id: trip.id,
-                driver_name: trip.driver.name,
-                vehicle_type: trip.vehicle_type,
-                price_per_seat: trip.price_per_seat,
-                from_location: trip.from_location,
-                to_location: trip.to_location,
-                travel_date: trip.travel_date,
-                travel_time: trip.travel_time,
-                available_seats: trip.available_seats,
-                status: trip.status,
-                ladies_only: trip.preferences.ladies_only,
-                no_smoking: trip.preferences.no_smoking,
-                pet_friendly: trip.preferences.pet_friendly,
-                match_score: trip.match_score,
-                driver_avatar: trip.driver.avatar
-            }));
+            // Use the trips data directly from the RPC response
+            const trips = data.data || [];
+            setResults(trips);
 
-            setResults(formattedTrips);
-
-            if (formattedTrips.length === 0) {
+            if (trips.length === 0) {
                 toast('No trips found', { icon: '🔍' });
             } else {
-                toast.success(`Found ${formattedTrips.length} trips`);
+                toast.success(`Found ${trips.length} trips`);
             }
 
         } catch (error) {
@@ -109,6 +87,7 @@ const SearchTrips = ({ onBack, onTripSelect, searchParams }) => {
     };
 
     const formatDate = (dateStr) => {
+        if (!dateStr) return '';
         return new Date(dateStr).toLocaleDateString('en-IN', {
             weekday: 'short',
             day: 'numeric',
@@ -117,21 +96,13 @@ const SearchTrips = ({ onBack, onTripSelect, searchParams }) => {
     };
 
     const formatTime = (timeStr) => {
+        if (!timeStr) return '';
         const [hours, minutes] = timeStr.split(':');
         const hour = parseInt(hours);
         const ampm = hour >= 12 ? 'PM' : 'AM';
         const displayHour = hour % 12 || 12;
         return `${displayHour}:${minutes} ${ampm}`;
     };
-
-    // Get today's date as minimum (Local time fix)
-    const today = (() => {
-        const d = new Date();
-        const year = d.getFullYear();
-        const month = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-    })();
 
     return (
         <div className="search-trips-container">
@@ -143,8 +114,6 @@ const SearchTrips = ({ onBack, onTripSelect, searchParams }) => {
                 <h1>Search Trips</h1>
                 <div className="header-spacer" />
             </div>
-
-            {/* Results - No Form here as it's now on Home page */}
 
             {/* Results */}
             <div className="results-section">
@@ -178,10 +147,10 @@ const SearchTrips = ({ onBack, onTripSelect, searchParams }) => {
                                 <div className="trip-card-header">
                                     <div className="driver-info">
                                         <div className="driver-avatar">
-                                            {trip.driver_name.charAt(0)}
+                                            {(trip.driver_name || 'D').charAt(0)}
                                         </div>
                                         <div>
-                                            <h3>{trip.driver_name}</h3>
+                                            <h3>{trip.driver_name || 'Driver'}</h3>
                                             <span className="vehicle-type">
                                                 {trip.vehicle_type === 'car' ? <Car size={14} /> : <Bike size={14} />}
                                                 {trip.vehicle_type}
@@ -211,11 +180,11 @@ const SearchTrips = ({ onBack, onTripSelect, searchParams }) => {
                                 <div className="trip-meta">
                                     <span className="meta-item">
                                         <Calendar size={14} />
-                                        {formatDate(trip.travel_date)}
+                                        {trip.formatted_date || formatDate(trip.travel_date)}
                                     </span>
                                     <span className="meta-item">
                                         <span className="time-icon">🕐</span>
-                                        {formatTime(trip.travel_time)}
+                                        {trip.formatted_time || formatTime(trip.travel_time)}
                                     </span>
                                     <span className="meta-item seats">
                                         {trip.available_seats} seat{trip.available_seats > 1 ? 's' : ''} left

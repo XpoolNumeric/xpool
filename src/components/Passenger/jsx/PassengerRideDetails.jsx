@@ -7,9 +7,10 @@ import { formatDate, formatTime, isTripToday } from '../../../utils/dateHelper';
 import { getOTPForTrip } from '../../../utils/otpHelper';
 import RatingModal from './RatingModal';
 import Chat from '../../common/Chat';
+import { liveTrackingService } from '../../../services/tracking/LiveTrackingService';
 import '../css/PassengerRideDetails.css';
 
-const PassengerRideDetails = ({ booking, onBack }) => {
+const PassengerRideDetails = ({ booking, onBack, onPaymentRequired }) => {
     // Handle cases where Supabase might return trips as an array or object
     const initialTrip = Array.isArray(booking?.trips) ? booking.trips[0] : booking?.trips;
 
@@ -22,11 +23,13 @@ const PassengerRideDetails = ({ booking, onBack }) => {
     const [showRating, setShowRating] = useState(false);
     const [showChat, setShowChat] = useState(false);
     const [currentUserId, setCurrentUserId] = useState(null);
+    const [isPaid, setIsPaid] = useState(booking?.ride_payment?.payment_status === 'paid');
 
     const mapContainerRef = useRef(null);
     const mapInstanceRef = useRef(null);
+    const driverMarkerRef = useRef(null);
 
-    useEffect(() => {   
+    useEffect(() => {
         const getSession = async () => {
             const { data: { session } } = await supabase.auth.getSession();
             if (session?.user) setCurrentUserId(session.user.id);
@@ -51,52 +54,185 @@ const PassengerRideDetails = ({ booking, onBack }) => {
             }, (payload) => {
                 const updatedTrip = Array.isArray(payload.new) ? payload.new[0] : payload.new;
                 setTrip(updatedTrip);
+
                 if (updatedTrip.status === 'completed') {
+                    liveTrackingService.stopTracking(); // Stop listening
                     toast.success('Your ride has been completed!');
                     setShowRating(true);
-                } else if (payload.new.status === 'in_progress') {
+                } else if (updatedTrip.status === 'in_progress' && trip?.status !== 'in_progress') {
                     toast.info('Driver has started the journey!');
                 }
             })
             .subscribe();
 
+        // Handle Live Tracking
+        if (trip?.status === 'in_progress' && trip?.id) {
+            liveTrackingService.startTracking(trip.id, (location) => {
+                if (!mapInstanceRef.current) return;
+
+                // Update or create driver marker on map
+                if (driverMarkerRef.current) {
+                    if (driverMarkerRef.current.setPosition) {
+                        driverMarkerRef.current.setPosition(location);
+                    } else {
+                        driverMarkerRef.current.position = location;
+                    }
+                } else {
+                    driverMarkerRef.current = addMarker(
+                        mapInstanceRef.current,
+                        location,
+                        'Driver Location',
+                        'https://maps.google.com/mapfiles/kml/shapes/cabs.png' // Simple car icon
+                    );
+                }
+
+                // Slowly pan to keep driver in view (optional, might annoy user if they are panning)
+                // mapInstanceRef.current.panTo(location);
+            }, 'passenger');
+        }
+
         return () => {
             supabase.removeChannel(subscription);
+            liveTrackingService.stopTracking();
         };
-    }, [trip?.id]);
+    }, [trip?.id, trip?.status]);
+
+    // Listen for passenger_dropped and ride_started broadcasts
+    useEffect(() => {
+        if (!currentUserId || !trip?.id) return;
+
+        const passengerChannel = supabase
+            .channel(`passenger_${currentUserId}`)
+            .on('broadcast', { event: 'passenger_dropped' }, (payload) => {
+                if (payload.payload?.trip_id === trip.id) {
+                    toast.success(payload.payload.message || 'You have been dropped off!');
+                    liveTrackingService.stopTracking();
+                    if (payload.payload?.amount > 0 && payload.payload?.payment_id && onPaymentRequired) {
+                        onPaymentRequired(payload.payload);
+                    } else {
+                        setShowRating(true);
+                    }
+                }
+            })
+            .on('broadcast', { event: 'ride_started' }, (payload) => {
+                if (payload.payload?.trip_id === trip.id) {
+                    toast.success('🚗 Your ride has started! Track your driver in real-time.');
+                }
+            })
+            .on('broadcast', { event: 'ride_otp' }, (payload) => {
+                if (payload.payload?.trip_id === trip.id && payload.payload?.otp) {
+                    setOtp(payload.payload.otp);
+                    toast.success(`🔐 Your OTP: ${payload.payload.otp}. Share it with your driver!`, { duration: 10000 });
+                }
+            })
+            .on('broadcast', { event: 'payment_received' }, (payload) => {
+                if (payload.payload?.trip_id === trip.id) {
+                    toast.success('💸 Payment confirmed by driver!');
+                    setIsPaid(true);
+                    fetchData();
+                }
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(passengerChannel);
+        };
+    }, [currentUserId, trip?.id]);
 
     const fetchData = async () => {
-        if (!trip?.user_id) return;
-        try {
-            // Fetch Driver Info
-            const { data: profile } = await supabase
-                .from('profiles')
-                .select('full_name')
-                .eq('id', trip.user_id)
-                .single();
+        // Use driver_details from booking if available (passed from MyBookings)
+        const bookingDriverDetails = booking?.driver_details;
 
-            const { data: driverInfo } = await supabase
-                .from('drivers')
-                .select('phone, vehicle_model, vehicle_number')
-                .eq('user_id', trip.user_id)
-                .maybeSingle();
+        // Try fetching fresh driver info from profiles table using driver_id or trip.user_id
+        const driverId = booking?.driver_id || trip?.user_id;
 
+        if (driverId) {
+            try {
+                // Fetch from profiles table first
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('full_name, phone_number, vehicle_type, vehicle_number')
+                    .eq('id', driverId)
+                    .single();
+
+                // Also fetch from drivers table (more reliable for vehicle_number)
+                const { data: driverRecord } = await supabase
+                    .from('drivers')
+                    .select('vehicle_number, phone')
+                    .eq('user_id', driverId)
+                    .maybeSingle();
+
+                const resolvedPhone =
+                    profile?.phone_number ||
+                    driverRecord?.phone ||
+                    bookingDriverDetails?.phone ||
+                    '';
+
+                const resolvedVehicleNumber =
+                    profile?.vehicle_number ||
+                    driverRecord?.vehicle_number ||
+                    bookingDriverDetails?.vehicle_number ||
+                    '';
+
+                const resolvedVehicleType =
+                    profile?.vehicle_type ||
+                    bookingDriverDetails?.vehicle_type ||
+                    '';
+
+                const resolvedName =
+                    profile?.full_name ||
+                    bookingDriverDetails?.full_name ||
+                    'Driver';
+
+                setDriver({
+                    name: resolvedName,
+                    phone: resolvedPhone,
+                    vehicle_type: resolvedVehicleType,
+                    vehicle_number: resolvedVehicleNumber,
+                    vehicle: resolvedVehicleNumber
+                        ? `${resolvedVehicleType || 'Vehicle'} (${resolvedVehicleNumber})`
+                        : (resolvedVehicleType || '')
+                });
+            } catch (error) {
+                console.error('Error fetching driver profile:', error);
+                // Fallback to booking data
+                if (bookingDriverDetails) {
+                    setDriver({
+                        name: bookingDriverDetails.full_name || 'Driver',
+                        phone: bookingDriverDetails.phone || '',
+                        vehicle_type: bookingDriverDetails.vehicle_type || '',
+                        vehicle_number: bookingDriverDetails.vehicle_number || '',
+                        vehicle: bookingDriverDetails.vehicle_number
+                            ? `${bookingDriverDetails.vehicle_type || 'Vehicle'} (${bookingDriverDetails.vehicle_number})`
+                            : (bookingDriverDetails.vehicle_type || '')
+                    });
+                } else {
+                    setDriver({ name: 'Driver', phone: '', vehicle: '', vehicle_type: '', vehicle_number: '' });
+                }
+            }
+        } else if (bookingDriverDetails) {
             setDriver({
-                name: profile?.full_name || 'Driver',
-                phone: driverInfo?.phone || '',
-                vehicle: `${driverInfo?.vehicle_model || ''} (${driverInfo?.vehicle_number || ''})`
+                name: bookingDriverDetails.full_name || 'Driver',
+                phone: bookingDriverDetails.phone || '',
+                vehicle_type: bookingDriverDetails.vehicle_type || '',
+                vehicle_number: bookingDriverDetails.vehicle_number || '',
+                vehicle: bookingDriverDetails.vehicle_number
+                    ? `${bookingDriverDetails.vehicle_type || 'Vehicle'} (${bookingDriverDetails.vehicle_number})`
+                    : (bookingDriverDetails.vehicle_type || '')
             });
+        } else {
+            setDriver({ name: 'Driver', phone: '', vehicle: '', vehicle_type: '', vehicle_number: '' });
+        }
 
-            // Get OTP if today
-            if (isTripToday(trip.travel_date) && booking.status === 'approved') {
-                const tripOtp = await getOTPForTrip(trip.id);
-                setOtp(tripOtp);
+        try {
+            // Get OTP from booking object directly
+            if (trip?.id && booking.status === 'approved' && booking.otp_code) {
+                setOtp(booking.otp_code);
             }
 
             initializeGoogleMaps();
         } catch (error) {
-            console.error('Error fetching details:', error);
-            toast.error('Failed to load details');
+            console.error('Error fetching additional details:', error);
         } finally {
             setLoading(false);
         }
@@ -218,10 +354,10 @@ const PassengerRideDetails = ({ booking, onBack }) => {
                         <p className="status-subtext">The trip is scheduled for today!</p>
                     )}
                     {trip.status === 'in_progress' && (
-                        <button className="track-action-btn" onClick={() => toast.success('Live tracking activated!')}>
-                            <MapIcon size={18} />
-                            Track Live Location
-                        </button>
+                        <div className="status-subtext" style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px', color: '#10b981', background: 'rgba(16, 185, 129, 0.1)', padding: '6px 12px', borderRadius: '12px' }}>
+                            <div className="tracking-dot animate-pulse"></div>
+                            <span>Live Tracking Enabled</span>
+                        </div>
                     )}
                 </div>
 
@@ -240,30 +376,38 @@ const PassengerRideDetails = ({ booking, onBack }) => {
                 )}
 
                 {/* Driver Info Card */}
-                <div className="info-card">
-                    <div className="card-header">
-                        <User size={18} />
-                        <h3>Driver Information</h3>
-                    </div>
-                    <div className="driver-main">
-                        <div className="avatar">
-                            {driver.name.charAt(0)}
+                {driver && (
+                    <div className="info-card">
+                        <div className="card-header">
+                            <User size={18} />
+                            <h3>Driver Information</h3>
                         </div>
-                        <div className="details">
-                            <h4>{driver.name}</h4>
-                            <p>{driver.vehicle}</p>
+                        <div className="driver-main">
+                            <div className="avatar">
+                                {driver.name.charAt(0)}
+                            </div>
+                            <div className="details">
+                                <h4>{driver.name}</h4>
+                                {driver.vehicle && <p>{driver.vehicle}</p>}
+                                {driver.phone && (
+                                    <p className="driver-phone-text">
+                                        <Phone size={14} />
+                                        <a href={`tel:${driver.phone}`} className="phone-link">{driver.phone}</a>
+                                    </p>
+                                )}
+                            </div>
+                            <button className="call-btn" onClick={handleCall}>
+                                <Phone size={20} />
+                            </button>
                         </div>
-                        <button className="call-btn" onClick={handleCall}>
-                            <Phone size={20} />
-                        </button>
+                        <div className="driver-actions">
+                            <button className="msg-btn" onClick={() => setShowChat(true)}>
+                                <MessageSquare size={18} />
+                                <span>Chat with Driver</span>
+                            </button>
+                        </div>
                     </div>
-                    <div className="driver-actions">
-                        <button className="msg-btn" onClick={() => setShowChat(true)}>
-                            <MessageSquare size={18} />
-                            <span>Chat with Driver</span>
-                        </button>
-                    </div>
-                </div>
+                )}
 
                 {/* Route Info Card */}
                 <div className="info-card">
@@ -315,6 +459,37 @@ const PassengerRideDetails = ({ booking, onBack }) => {
                         </div>
                     </div>
                 </div>
+
+                {/* Active Trip Pay Now Section */}
+                {trip.status === 'in_progress' && (
+                    <div className="active-trip-pay-section">
+                        <div className="active-trip-banner">
+                            <div className="pulse-dot"></div>
+                            <span>Your trip is active now</span>
+                        </div>
+                        {isPaid || booking?.ride_payment?.payment_status === 'paid' ? (
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '16px', background: '#ecfdf5', color: '#10b981', borderRadius: '12px', fontWeight: 'bold' }}>
+                                <CheckCircle size={20} /> Payment Completed
+                            </div>
+                        ) : (
+                            <button 
+                                className="pay-now-btn" 
+                                onClick={() => {
+                                    if (onPaymentRequired) {
+                                        onPaymentRequired({
+                                            trip_id: trip.id,
+                                            booking_id: booking.id, 
+                                            amount: trip.price_per_seat * booking.seats_requested,
+                                            payment_id: booking?.payment_id || trip?.payment_id
+                                        });
+                                    }
+                                }}
+                            >
+                                Pay Now
+                            </button>
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* Chat Overlay */}

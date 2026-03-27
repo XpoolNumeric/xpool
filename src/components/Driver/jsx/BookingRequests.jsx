@@ -15,67 +15,64 @@ const BookingRequests = ({ onBack }) => {
     const [currentUserId, setCurrentUserId] = useState(null);
 
     useEffect(() => {
-        const getSession = async () => {
+        let subscription;
+
+        const init = async () => {
             const { data: { session } } = await supabase.auth.getSession();
-            if (session?.user) setCurrentUserId(session.user.id);
+            if (!session?.user) return;
+
+            const userId = session.user.id;
+            setCurrentUserId(userId);
+
+            // Fetch requests immediately
+            fetchRequests(userId);
+
+            // Real-time subscription filtered to this driver's bookings
+            subscription = supabase
+                .channel(`driver_bookings_${userId}`)
+                .on('postgres_changes', {
+                    event: '*',
+                    schema: 'public',
+                    table: 'booking_requests',
+                    filter: `driver_id=eq.${userId}`,
+                }, (payload) => {
+                    console.log('Booking request change for this driver:', payload);
+                    fetchRequests(userId);
+                })
+                .subscribe((status) => {
+                    if (status === 'SUBSCRIBED') {
+                        console.log('Subscribed to driver booking requests');
+                    }
+                });
         };
-        getSession();
-        fetchRequests();
 
-        // Real-time subscription for booking requests
-        const subscription = supabase
-            .channel('driver_booking_requests')
-            .on('postgres_changes', {
-                event: '*', // Listen to INSERT, UPDATE, DELETE
-                schema: 'public',
-                table: 'booking_requests',
-            }, (payload) => {
-                console.log('Booking request change detected:', payload);
-                // Refresh requests when any booking request changes
-                fetchRequests();
-            })
-            .subscribe((status) => {
-                if (status === 'SUBSCRIBED') {
-                    console.log('Successfully subscribed to booking requests');
-                } else if (status === 'CHANNEL_ERROR') {
-                    console.error('Error subscribing to booking requests');
-                }
-            });
+        init();
 
-        // Cleanup subscription on unmount
         return () => {
-            console.log('Cleaning up booking requests subscription');
-            supabase.removeChannel(subscription);
+            if (subscription) {
+                supabase.removeChannel(subscription);
+            }
         };
     }, []);
 
-    const fetchRequests = async () => {
+    const fetchRequests = async (driverId) => {
         try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
-
-            // Get all trips for this driver
-            const { data: trips } = await supabase
-                .from('trips')
-                .select('id')
-                .eq('user_id', user.id);
-
-            if (!trips || trips.length === 0) {
-                setRequests([]);
-                setLoading(false);
-                return;
+            // If no driverId passed, get it from session
+            let userId = driverId;
+            if (!userId) {
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) return;
+                userId = user.id;
             }
 
-            const tripIds = trips.map(t => t.id);
+            console.log('[BookingRequests] Fetching requests for driver:', userId);
 
-            // Get booking requests for these trips
+            // Single query: get all booking requests for this driver directly
+            // (book-trip edge function stores driver_id on each booking)
             const { data, error } = await supabase
                 .from('booking_requests')
                 .select(`
                     *,
-                    profiles (
-                        full_name
-                    ),
                     trips (
                         from_location,
                         to_location,
@@ -85,47 +82,72 @@ const BookingRequests = ({ onBack }) => {
                         vehicle_type
                     )
                 `)
-                .in('trip_id', tripIds)
+                .eq('driver_id', userId)
                 .order('created_at', { ascending: false });
+
+            console.log('[BookingRequests] Query result - data:', data, 'error:', error);
 
             if (error) throw error;
 
+            // Batch fetch passenger profiles
+            const passengerIds = [...new Set((data || []).map(r => r.passenger_id).filter(Boolean))];
+            let profilesMap = {};
 
-            // Fetch ratings for each passenger (Feature 5)
-            const requestsWithPassenger = await Promise.all(
-                (data || []).map(async (req) => {
-                    // Fetch Ratings
-                    const { data: ratings } = await supabase
+            if (passengerIds.length > 0) {
+                const { data: profilesData } = await supabase
+                    .from('profiles')
+                    .select('id, full_name')
+                    .in('id', passengerIds);
+
+                if (profilesData) {
+                    profilesData.forEach(p => {
+                        profilesMap[p.id] = p.full_name;
+                    });
+                }
+            }
+
+            // Batch fetch ratings: collect unique passenger IDs (non-critical, fail gracefully)
+            let ratingsMap = {};
+
+            if (passengerIds.length > 0) {
+                try {
+                    const { data: allRatings } = await supabase
                         .from('reviews')
-                        .select('rating')
-                        .eq('target_id', req.passenger_id);
+                        .select('target_id, rating')
+                        .in('target_id', passengerIds);
 
-                    let avgRating = 0;
-                    if (ratings && ratings.length > 0) {
-                        const total = ratings.reduce((sum, r) => sum + r.rating, 0);
-                        avgRating = (total / ratings.length).toFixed(1);
-                    } else {
-                        avgRating = 'New';
+                    if (allRatings) {
+                        // Group ratings by target_id and compute average
+                        allRatings.forEach(r => {
+                            if (!ratingsMap[r.target_id]) ratingsMap[r.target_id] = [];
+                            ratingsMap[r.target_id].push(r.rating);
+                        });
                     }
+                } catch (ratingsError) {
+                    console.warn('[BookingRequests] Reviews query failed (non-critical):', ratingsError);
+                }
+            }
 
-                    let passengerName = 'Unknown Passenger';
-                    if (req.profiles) {
-                        passengerName = Array.isArray(req.profiles)
-                            ? (req.profiles[0]?.full_name || 'Unknown Passenger')
-                            : (req.profiles.full_name || 'Unknown Passenger');
-                    }
+            // Map results with passenger names and ratings
+            const requestsWithPassenger = (data || []).map(req => {
+                const ratings = ratingsMap[req.passenger_id];
+                let avgRating = 'New';
+                if (ratings && ratings.length > 0) {
+                    const total = ratings.reduce((sum, r) => sum + r, 0);
+                    avgRating = (total / ratings.length).toFixed(1);
+                }
 
-                    return {
-                        ...req,
-                        passenger_name: passengerName,
-                        passenger_rating: avgRating
-                    };
-                })
-            );
+                return {
+                    ...req,
+                    passenger_name: profilesMap[req.passenger_id] || 'Unknown Passenger',
+                    passenger_rating: avgRating
+                };
+            });
 
+            console.log('[BookingRequests] Processed requests:', requestsWithPassenger.length, requestsWithPassenger);
             setRequests(requestsWithPassenger);
         } catch (error) {
-            console.error('Error fetching requests:', error);
+            console.error('[BookingRequests] Error fetching requests:', error);
             toast.error('Failed to load requests');
         } finally {
             setLoading(false);
@@ -134,79 +156,83 @@ const BookingRequests = ({ onBack }) => {
 
     const handleApprove = async (request) => {
         try {
-            // Update booking request status
-            const { error: updateError } = await supabase
-                .from('booking_requests')
-                .update({
-                    status: 'approved',
-                    updated_at: new Date().toISOString()
-                })
-                .eq('id', request.id);
+            console.log('[BookingRequests] Approving booking:', request.id);
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) throw new Error('Session expired. Please login again.');
 
-            if (updateError) throw updateError;
+            const { data, error } = await supabase.functions.invoke('approve-booking', {
+                body: { booking_id: request.id },
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
 
-            // Update available seats in trip
-            const newSeats = request.trips.available_seats - request.seats_requested;
-            const tripStatus = newSeats <= 0 ? 'full' : 'active';
+            console.log('[BookingRequests] Approve response - data:', data, 'error:', error);
 
-            await supabase
-                .from('trips')
-                .update({
-                    available_seats: Math.max(0, newSeats),
-                    status: tripStatus
-                })
-                .eq('id', request.trip_id);
+            if (error) {
+                // Extract actual error message from edge function response
+                let errorMessage = 'Failed to approve booking';
+                try {
+                    if (error.context && error.context.json) {
+                        const errorBody = await error.context.json();
+                        errorMessage = errorBody?.error || error.message || errorMessage;
+                    } else {
+                        errorMessage = error.message || errorMessage;
+                    }
+                } catch (parseErr) {
+                    errorMessage = error.message || errorMessage;
+                }
+                throw new Error(errorMessage);
+            }
+            if (!data?.success) throw new Error(data?.error || 'Approval failed');
 
             // Update local state
             setRequests(prev => prev.map(r =>
                 r.id === request.id ? { ...r, status: 'approved' } : r
             ));
 
-            // Send notification to passenger
-            await createNotification(
-                request.passenger_id,
-                'booking_approved',
-                'Booking Approved!',
-                `Your request for the ride to ${request.trips.to_location} has been approved.`,
-                request.trip_id
-            );
-
-            toast.success('Booking approved!');
+            toast.success('🎉 Ride confirmed! Passenger has been notified.');
         } catch (error) {
-            console.error('Error approving request:', error);
-            toast.error('Failed to approve booking');
+            console.error('[BookingRequests] Error approving request:', error);
+            toast.error(error.message || 'Failed to approve booking');
         }
     };
 
     const handleReject = async (request) => {
         try {
-            const { error } = await supabase
-                .from('booking_requests')
-                .update({
-                    status: 'rejected',
-                    updated_at: new Date().toISOString()
-                })
-                .eq('id', request.id);
+            console.log('[BookingRequests] Rejecting booking:', request.id);
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) throw new Error('Session expired. Please login again.');
 
-            if (error) throw error;
+            const { data, error } = await supabase.functions.invoke('reject-booking', {
+                body: { booking_id: request.id },
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+
+            console.log('[BookingRequests] Reject response - data:', data, 'error:', error);
+
+            if (error) {
+                let errorMessage = 'Failed to reject booking';
+                try {
+                    if (error.context && error.context.json) {
+                        const errorBody = await error.context.json();
+                        errorMessage = errorBody?.error || error.message || errorMessage;
+                    } else {
+                        errorMessage = error.message || errorMessage;
+                    }
+                } catch (parseErr) {
+                    errorMessage = error.message || errorMessage;
+                }
+                throw new Error(errorMessage);
+            }
+            if (!data?.success) throw new Error(data?.error || 'Rejection failed');
 
             setRequests(prev => prev.map(r =>
                 r.id === request.id ? { ...r, status: 'rejected' } : r
             ));
 
-            // Send notification to passenger
-            await createNotification(
-                request.passenger_id,
-                'booking_rejected',
-                'Booking Rejected',
-                `Your request for the ride to ${request.trips.to_location} has been declined.`,
-                request.trip_id
-            );
-
-            toast.success('Booking rejected');
+            toast.success('Booking declined');
         } catch (error) {
-            console.error('Error rejecting request:', error);
-            toast.error('Failed to reject booking');
+            console.error('[BookingRequests] Error rejecting request:', error);
+            toast.error(error.message || 'Failed to reject booking');
         }
     };
 
@@ -325,6 +351,25 @@ const BookingRequests = ({ onBack }) => {
                                             <span className="arrow">→</span>
                                             <span>{request.trips.to_location}</span>
                                         </div>
+
+                                        {/* Passenger Pickup & Destination */}
+                                        {(request.passenger_location || request.passenger_destination) && (
+                                            <div className="passenger-route">
+                                                {request.passenger_location && (
+                                                    <div className="passenger-point">
+                                                        <MapPin size={12} style={{ color: '#22c55e' }} />
+                                                        <span>Pickup: {request.passenger_location}</span>
+                                                    </div>
+                                                )}
+                                                {request.passenger_destination && (
+                                                    <div className="passenger-point">
+                                                        <MapPin size={12} style={{ color: '#ef4444' }} />
+                                                        <span>Drop: {request.passenger_destination}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
                                         <div className="meta">
                                             <span>
                                                 <Calendar size={14} />

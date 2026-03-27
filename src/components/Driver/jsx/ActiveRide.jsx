@@ -1,19 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, MapPin, Navigation2, Phone, MessageCircle, AlertTriangle, CheckCircle, Clock, ExternalLink, ShieldAlert, X, User, LogOut } from 'lucide-react';
+import { ArrowLeft, MapPin, Navigation2, Phone, MessageCircle, AlertTriangle, CheckCircle, Clock, ExternalLink, ShieldAlert, X, User, LogOut, CreditCard, Banknote, ChevronRight, Loader2 } from 'lucide-react';
 import { supabase } from '../../../supabaseClient';
 import toast from 'react-hot-toast';
 import { loadGoogleMapsScript, initializeMap, createRoute, addMarker, getCurrentLocation } from '../../../utils/googleMapsHelper';
 import Chat from '../../common/Chat';
 import DriverRatingModal from './DriverRatingModal';
+import { liveTrackingService } from '../../../services/tracking/LiveTrackingService';
 import '../css/ActiveRide.css';
 
 const ActiveRide = ({ trip: initialTrip, onBack, onLogout }) => {
     const [trip, setTrip] = useState(initialTrip);
     const [passengers, setPassengers] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [otpValue, setOtpValue] = useState('');
-    const [isVerifying, setIsVerifying] = useState(false);
     const [mapLoaded, setMapLoaded] = useState(false);
+    const [isDropping, setIsDropping] = useState(null);
     const [routeInfo, setRouteInfo] = useState(null);
     const [showChat, setShowChat] = useState(false);
     const [activeChatTripId, setActiveChatTripId] = useState(null);
@@ -22,19 +22,37 @@ const ActiveRide = ({ trip: initialTrip, onBack, onLogout }) => {
     const [sosActive, setSosActive] = useState(false);
     const [currentUserId, setCurrentUserId] = useState(null);
 
+    // Drop flow state
+    const [dropTarget, setDropTarget] = useState(null); // passenger being drop-confirmed
+    const [cashConfirmVisible, setCashConfirmVisible] = useState(false);
+    const [processingPayment, setProcessingPayment] = useState(false);
+
+    // Swipe state
+    const [swipeProgress, setSwipeProgress] = useState(0);
+    const [isSwiping, setIsSwiping] = useState(false);
+    const [isFinishing, setIsFinishing] = useState(false);
+    const swipeRef = useRef(null);
+    const swipeContainerRef = useRef(null);
+
     const mapInstanceRef = useRef(null);
 
     useEffect(() => {
-        const getSession = async () => {
+        let mounted = true;
+
+        const initRide = async () => {
             const { data: { session } } = await supabase.auth.getSession();
-            if (session?.user) setCurrentUserId(session.user.id);
+            if (session?.user && mounted) setCurrentUserId(session.user.id);
+
+            await fetchTripData();
+            await initializeGoogleMaps();
+
+            if (trip.status === 'in_progress') {
+                liveTrackingService.startTracking(trip.id, () => {}, 'driver');
+            }
         };
-        getSession();
 
-        fetchTripData();
-        initializeGoogleMaps();
+        initRide();
 
-        // Subscribe to actual trip updates
         const tripSubscription = supabase
             .channel(`active_trip_${trip.id}`)
             .on('postgres_changes', {
@@ -43,11 +61,10 @@ const ActiveRide = ({ trip: initialTrip, onBack, onLogout }) => {
                 table: 'trips',
                 filter: `id=eq.${trip.id}`
             }, (payload) => {
-                if (payload.new) setTrip(payload.new);
+                if (payload.new && mounted) setTrip(payload.new);
             })
             .subscribe();
 
-        // Subscribe to booking requests changes
         const bookingsSubscription = supabase
             .channel(`trip_bookings_${trip.id}`)
             .on('postgres_changes', {
@@ -56,15 +73,17 @@ const ActiveRide = ({ trip: initialTrip, onBack, onLogout }) => {
                 table: 'booking_requests',
                 filter: `trip_id=eq.${trip.id}`
             }, () => {
-                fetchTripData(); // Refresh passengers list
+                if (mounted) fetchTripData();
             })
             .subscribe();
 
         return () => {
+            mounted = false;
             supabase.removeChannel(tripSubscription);
             supabase.removeChannel(bookingsSubscription);
+            liveTrackingService.stopTracking();
         };
-    }, [trip.id]);
+    }, [trip.id, trip.status]);
 
     const fetchTripData = async () => {
         try {
@@ -74,17 +93,40 @@ const ActiveRide = ({ trip: initialTrip, onBack, onLogout }) => {
                     id,
                     seats_requested,
                     status,
+                    drop_status,
                     passenger_id,
-                    profiles:passenger_id (
-                        full_name,
-                        id
-                    )
+                    payment_mode,
+                    ride_payments ( id, payment_status, total_amount )
                 `)
                 .eq('trip_id', trip.id)
-                .eq('status', 'approved');
+                .in('status', ['approved', 'in_progress', 'completed']);
 
             if (error) throw error;
-            setPassengers(bookings || []);
+
+            const passengerIds = [...new Set((bookings || []).map(b => b.passenger_id).filter(Boolean))];
+            let profilesMap = {};
+
+            if (passengerIds.length > 0) {
+                const { data: profiles, error: profileError } = await supabase
+                    .from('profiles')
+                    .select('id, full_name, phone_number')
+                    .in('id', passengerIds);
+
+                if (!profileError && profiles) {
+                    profiles.forEach(p => { profilesMap[p.id] = p; });
+                }
+            }
+
+            const bookingsWithProfiles = (bookings || []).map(b => {
+                const ridePayment = Array.isArray(b.ride_payments) ? b.ride_payments[0] : b.ride_payments;
+                return {
+                    ...b,
+                    ride_payment: ridePayment || null,
+                    profiles: profilesMap[b.passenger_id] || { full_name: 'Passenger' }
+                };
+            });
+
+            setPassengers(bookingsWithProfiles);
         } catch (error) {
             console.error('Error fetching passengers:', error);
             toast.error('Failed to load passengers');
@@ -117,59 +159,165 @@ const ActiveRide = ({ trip: initialTrip, onBack, onLogout }) => {
         }
     };
 
-    const handleVerifyOtp = async () => {
-        if (!otpValue) {
-            toast.error('Please enter OTP');
-            return;
-        }
+    // ── Drop Flow ──────────────────────────────────────────────
+    const initiateDropPassenger = (passenger) => {
+        if (passenger.drop_status === 'completed') return;
+        setDropTarget(passenger);
 
-        setIsVerifying(true);
-        try {
-            const { data, error } = await supabase
-                .from('trips')
-                .update({ status: 'in_progress' })
-                .eq('id', trip.id)
-                .eq('otp_code', otpValue)
-                .select();
+        const rp = passenger.ride_payment;
+        const isPaidOnline = rp && rp.payment_status === 'paid';
+        const paymentMode = passenger.payment_mode;
 
-            if (error || !data.length) {
-                toast.error('Invalid OTP code');
-            } else {
-                toast.success('OTP Verified! Drive safely.');
-                setTrip(data[0]);
-            }
-        } catch (error) {
-            toast.error('Verification failed');
-        } finally {
-            setIsVerifying(false);
+        if (isPaidOnline) {
+            // Online payment already confirmed → drop directly
+            handleDropPassenger(passenger);
+        } else if (paymentMode === 'cod' || !paymentMode) {
+            // Cash payment → show confirmation dialog
+            setCashConfirmVisible(true);
+        } else {
+            // Online payment not yet paid → check DB
+            checkOnlinePaymentAndDrop(passenger);
         }
     };
 
-    const handleCompleteRide = async () => {
+    const checkOnlinePaymentAndDrop = async (passenger) => {
+        setProcessingPayment(true);
         try {
+            // Re-fetch payment status from DB
+            const { data, error } = await supabase
+                .from('ride_payments')
+                .select('id, payment_status')
+                .eq('booking_id', passenger.id)
+                .maybeSingle();
+
+            if (error) throw error;
+
+            if (data && data.payment_status === 'paid') {
+                toast.success('Online payment verified ✓');
+                await handleDropPassenger(passenger);
+            } else {
+                toast.error('Payment not received yet. Ask passenger to complete payment or collect cash.');
+                setCashConfirmVisible(true); // Fallback to cash option
+            }
+        } catch (err) {
+            console.error('Payment check error:', err);
+            toast.error('Could not verify payment');
+        } finally {
+            setProcessingPayment(false);
+        }
+    };
+
+    const handleCashConfirmed = async () => {
+        if (!dropTarget) return;
+        setProcessingPayment(true);
+        try {
+            // Call verify-cash-payment to mark as paid
+            const { data, error } = await supabase.functions.invoke('verify-cash-payment', {
+                body: {
+                    booking_id: dropTarget.id,
+                    payment_id: dropTarget.ride_payment?.id
+                }
+            });
+
+            if (error) throw error;
+            if (!data.success) throw new Error(data.error || 'Failed to verify cash');
+
+            toast.success('Cash payment verified!');
+            await handleDropPassenger(dropTarget);
+        } catch (err) {
+            console.error('Cash verify error:', err);
+            toast.error(err.message || 'Failed to verify cash payment');
+        } finally {
+            setProcessingPayment(false);
+            setCashConfirmVisible(false);
+            setDropTarget(null);
+        }
+    };
+
+    const handleDropPassenger = async (passenger) => {
+        const target = passenger || dropTarget;
+        if (!target || target.drop_status === 'completed') return;
+
+        setIsDropping(target.passenger_id);
+        try {
+            const { data, error } = await supabase.functions.invoke('complete-passenger-drop', {
+                body: { trip_id: trip.id, booking_id: target.id }
+            });
+
+            if (error) throw error;
+            if (!data.success) throw new Error(data.error || 'Failed to drop passenger');
+
+            toast.success(data.message || `${target.profiles?.full_name} dropped off ✓`);
+            setCashConfirmVisible(false);
+            setDropTarget(null);
+
+            await fetchTripData();
+
+            if (data.all_dropped) {
+                liveTrackingService.stopTracking();
+                toast.success('🎉 All passengers dropped! Ride completed.');
+                setTimeout(() => onBack(), 2000);
+            }
+        } catch (error) {
+            console.error('Drop error:', error);
+            toast.error('Failed to drop passenger');
+        } finally {
+            setIsDropping(null);
+        }
+    };
+
+    // ── Finish Ride (Swipe) ────────────────────────────────────
+    const allDropped = passengers.length > 0 && passengers.every(p => p.drop_status === 'completed');
+
+    const handleFinishRide = async () => {
+        if (!allDropped) {
+            toast.error('Drop off all passengers before finishing the ride.');
+            return;
+        }
+        setIsFinishing(true);
+        try {
+            // Trip should already be marked completed by complete-passenger-drop
+            // but ensure it's done
             const { error } = await supabase
                 .from('trips')
-                .update({ status: 'completed' })
+                .update({ status: 'completed', completed_at: new Date().toISOString() })
                 .eq('id', trip.id);
 
             if (error) throw error;
 
-            toast.success('Trip completed!');
-
-            // Trigger passenger rating for each passenger
-            if (passengers.length > 0) {
-                setCurrentPassengerToRate({
-                    id: trip.id,
-                    passenger_id: passengers[0].passenger_id,
-                    passenger_name: passengers[0].profiles?.full_name
-                });
-                setShowRating(true);
-            } else {
-                onBack();
-            }
-        } catch (error) {
-            toast.error('Failed to complete trip');
+            liveTrackingService.stopTracking();
+            toast.success('🎉 Ride completed! Earnings credited to your wallet.');
+            setTimeout(() => onBack(), 1500);
+        } catch (err) {
+            console.error('Finish ride error:', err);
+            toast.error('Failed to finish ride');
+        } finally {
+            setIsFinishing(false);
         }
+    };
+
+    // Swipe gesture handlers
+    const handleSwipeStart = (e) => {
+        if (!allDropped || isFinishing) return;
+        setIsSwiping(true);
+    };
+
+    const handleSwipeMove = (e) => {
+        if (!isSwiping || !swipeContainerRef.current) return;
+        const containerWidth = swipeContainerRef.current.offsetWidth - 64; // minus thumb width
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const rect = swipeContainerRef.current.getBoundingClientRect();
+        const progress = Math.min(Math.max((clientX - rect.left - 32) / containerWidth, 0), 1);
+        setSwipeProgress(progress);
+    };
+
+    const handleSwipeEnd = () => {
+        if (!isSwiping) return;
+        setIsSwiping(false);
+        if (swipeProgress > 0.75) {
+            handleFinishRide();
+        }
+        setSwipeProgress(0);
     };
 
     const handleCall = (phone) => {
@@ -188,6 +336,24 @@ const ActiveRide = ({ trip: initialTrip, onBack, onLogout }) => {
         const dest = encodeURIComponent(trip.to_location);
         window.open(`https://www.google.com/maps/dir/?api=1&destination=${dest}`, '_blank');
     };
+
+    // ── Helpers ────────────────────────────────────────────────
+    const getPassengerAmount = (p) => {
+        return p.ride_payment?.total_amount || (p.seats_requested * trip.price_per_seat);
+    };
+
+    const getPaymentBadge = (p) => {
+        const rp = p.ride_payment;
+        if (rp && rp.payment_status === 'paid') {
+            return { text: 'Paid ✓', color: '#10b981', bg: '#ecfdf5' };
+        }
+        if (p.payment_mode === 'online') {
+            return { text: 'Online', color: '#3b82f6', bg: '#eff6ff' };
+        }
+        return { text: 'Cash', color: '#f59e0b', bg: '#fffbeb' };
+    };
+
+    const droppedCount = passengers.filter(p => p.drop_status === 'completed').length;
 
     return (
         <div className="active-ride-container animate-page-in">
@@ -261,25 +427,18 @@ const ActiveRide = ({ trip: initialTrip, onBack, onLogout }) => {
                     </button>
                 </div>
 
-                {trip.status === 'active' && (
-                    <div className="otp-section">
-                        <h3>Start Journey</h3>
-                        <p>Ask a passenger for the trip OTP to begin</p>
-                        <div className="otp-input-group">
-                            <input
-                                type="text"
-                                maxLength="4"
-                                placeholder="0000"
-                                value={otpValue}
-                                onChange={(e) => setOtpValue(e.target.value)}
+                {/* Progress bar */}
+                {passengers.length > 0 && (
+                    <div className="drop-progress-bar">
+                        <div className="drop-progress-text">
+                            <span>{droppedCount} of {passengers.length} dropped</span>
+                            {allDropped && <CheckCircle size={16} color="#10b981" />}
+                        </div>
+                        <div className="drop-progress-track">
+                            <div
+                                className="drop-progress-fill"
+                                style={{ width: `${(droppedCount / passengers.length) * 100}%` }}
                             />
-                            <button
-                                className="verify-btn"
-                                onClick={handleVerifyOtp}
-                                disabled={isVerifying}
-                            >
-                                {isVerifying ? '...' : 'Verify'}
-                            </button>
                         </div>
                     </div>
                 )}
@@ -289,35 +448,142 @@ const ActiveRide = ({ trip: initialTrip, onBack, onLogout }) => {
                     {passengers.length === 0 ? (
                         <p className="empty-text">No passengers for this ride yet.</p>
                     ) : (
-                        passengers.map((p) => (
-                            <div key={p.id} className="passenger-card-active">
-                                <div className="p-info">
-                                    <div className="p-avatar">{p.profiles?.full_name?.charAt(0) || <User size={20} />}</div>
-                                    <div className="p-details">
-                                        <h4>{p.profiles?.full_name}</h4>
-                                        <span className="seats-count">{p.seats_requested} Seat(s)</span>
+                        passengers.map((p) => {
+                            const badge = getPaymentBadge(p);
+                            const amount = getPassengerAmount(p);
+                            const isDropped = p.drop_status === 'completed';
+                            const isDroppingThis = isDropping === p.passenger_id;
+
+                            return (
+                                <div key={p.id} className={`passenger-card-active ${isDropped ? 'dropped' : ''}`}>
+                                    <div className="p-info">
+                                        <div className="p-avatar">{p.profiles?.full_name?.charAt(0) || <User size={20} />}</div>
+                                        <div className="p-details">
+                                            <h4>{p.profiles?.full_name}</h4>
+                                            <div className="p-meta">
+                                                <span className="seats-count">{p.seats_requested} Seat(s)</span>
+                                                <span className="p-amount">₹{amount}</span>
+                                                <span className="payment-badge" style={{ color: badge.color, background: badge.bg }}>
+                                                    {badge.text}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="p-actions" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                        {isDropped ? (
+                                            <div className="dropped-badge">
+                                                <CheckCircle size={16} />
+                                                <span>Dropped</span>
+                                            </div>
+                                        ) : trip.status === 'in_progress' ? (
+                                            <button
+                                                className="drop-btn"
+                                                onClick={() => initiateDropPassenger(p)}
+                                                disabled={isDroppingThis || processingPayment}
+                                            >
+                                                {isDroppingThis ? (
+                                                    <><Loader2 size={16} className="spinning-loader" /> Dropping...</>
+                                                ) : (
+                                                    <><MapPin size={16} /> Drop</>
+                                                )}
+                                            </button>
+                                        ) : (
+                                            <div className="status-badge pending">
+                                                <Clock size={14} />
+                                                <span>Waiting</span>
+                                            </div>
+                                        )}
+                                        <button className="icon-btn-circle chat" onClick={() => {
+                                            setActiveChatTripId(trip.id);
+                                            setShowChat(true);
+                                        }}>
+                                            <MessageCircle size={18} />
+                                        </button>
                                     </div>
                                 </div>
-                                <div className="p-actions">
-                                    <button className="icon-btn-circle chat" onClick={() => {
-                                        setActiveChatTripId(trip.id);
-                                        setShowChat(true);
-                                    }}>
-                                        <MessageCircle size={18} />
-                                    </button>
-                                </div>
-                            </div>
-                        ))
+                            );
+                        })
                     )}
                 </div>
             </div>
 
+            {/* Swipe to Finish Ride */}
             {trip.status === 'in_progress' && (
                 <div className="ride-footer">
-                    <button className="complete-ride-btn" onClick={handleCompleteRide}>
-                        <CheckCircle size={20} />
-                        Finish Trip
-                    </button>
+                    <div
+                        ref={swipeContainerRef}
+                        className={`swipe-container ${allDropped ? 'enabled' : 'disabled'} ${isFinishing ? 'finishing' : ''}`}
+                        onMouseMove={handleSwipeMove}
+                        onMouseUp={handleSwipeEnd}
+                        onMouseLeave={handleSwipeEnd}
+                        onTouchMove={handleSwipeMove}
+                        onTouchEnd={handleSwipeEnd}
+                    >
+                        {isFinishing ? (
+                            <div className="swipe-finishing">
+                                <Loader2 size={20} className="spinning-loader" />
+                                <span>Completing ride...</span>
+                            </div>
+                        ) : (
+                            <>
+                                <div
+                                    className="swipe-track-fill"
+                                    style={{ width: `${swipeProgress * 100}%` }}
+                                />
+                                <div
+                                    ref={swipeRef}
+                                    className="swipe-thumb"
+                                    style={{ left: `${swipeProgress * (100)}%` }}
+                                    onMouseDown={handleSwipeStart}
+                                    onTouchStart={handleSwipeStart}
+                                >
+                                    <ChevronRight size={20} />
+                                    <ChevronRight size={20} style={{ marginLeft: '-12px' }} />
+                                </div>
+                                <span className="swipe-text">
+                                    {allDropped
+                                        ? 'Swipe to Finish Ride →'
+                                        : `Drop all passengers first (${droppedCount}/${passengers.length})`}
+                                </span>
+                            </>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Cash Payment Confirmation Modal */}
+            {cashConfirmVisible && dropTarget && (
+                <div className="modal-overlay" onClick={() => { setCashConfirmVisible(false); setDropTarget(null); }}>
+                    <div className="cash-confirm-modal" onClick={e => e.stopPropagation()}>
+                        <div className="modal-icon">
+                            <Banknote size={32} color="#f59e0b" />
+                        </div>
+                        <h3>Confirm Cash Payment</h3>
+                        <p className="modal-passenger">{dropTarget.profiles?.full_name}</p>
+                        <div className="modal-amount">₹{getPassengerAmount(dropTarget)}</div>
+                        <p className="modal-subtitle">Have you collected cash from this passenger?</p>
+
+                        <div className="modal-actions">
+                            <button
+                                className="modal-btn cancel"
+                                onClick={() => { setCashConfirmVisible(false); setDropTarget(null); }}
+                                disabled={processingPayment}
+                            >
+                                Not Yet
+                            </button>
+                            <button
+                                className="modal-btn confirm"
+                                onClick={handleCashConfirmed}
+                                disabled={processingPayment}
+                            >
+                                {processingPayment ? (
+                                    <><Loader2 size={16} className="spinning-loader" /> Verifying...</>
+                                ) : (
+                                    <>Yes, Cash Received</>
+                                )}
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
 

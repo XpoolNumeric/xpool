@@ -1,12 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Car, Bike, MapPin, Calendar, Clock, Users, IndianRupee, Check, LogOut } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+    ArrowLeft, Car, Bike, MapPin, Calendar, Clock, Users,
+    IndianRupee, Check, LogOut, Calculator, AlertCircle, Loader
+} from 'lucide-react';
 import { supabase } from '../../../supabaseClient';
 import toast from 'react-hot-toast';
 import LocationInput from '../../common/LocationInput';
+import { PricingService } from '../../../utils/pricingService';
 import '../css/PublishTrip.css';
 
 const PublishTrip = ({ onBack, onSuccess, onLogout }) => {
     const [loading, setLoading] = useState(false);
+    const [calculating, setCalculating] = useState(false);
     const [formData, setFormData] = useState({
         vehicleType: 'car',
         availableSeats: 3,
@@ -15,21 +20,45 @@ const PublishTrip = ({ onBack, onSuccess, onLogout }) => {
         travelDate: '',
         travelTime: '',
         pricePerSeat: '',
-        // New Features
         ladiesOnly: false,
         noSmoking: false,
         petFriendly: false,
         isRecurring: false,
-        recurringDays: [] // e.g., ['Mon', 'Tue'] - For simple implementation, let's just do "Repeat for next 7 days" or "Mon-Fri"
     });
 
+    const [fareDetails, setFareDetails] = useState(null);
+    const [fareBreakdown, setFareBreakdown] = useState([]);
     const [driverId, setDriverId] = useState(null);
 
     const minDate = new Date().toISOString().split('T')[0];
 
+    // Debounced fare calculation
+    const debounce = (func, wait) => {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    };
+
     useEffect(() => {
         fetchDriverInfo();
     }, []);
+
+    // Auto-calculate fare when locations change (debounced)
+    useEffect(() => {
+        if (formData.fromLocation.trim() && formData.toLocation.trim()) {
+            const timer = setTimeout(() => {
+                calculateFare();
+            }, 1500);
+
+            return () => clearTimeout(timer);
+        }
+    }, [formData.fromLocation, formData.toLocation, formData.vehicleType]);
 
     const fetchDriverInfo = async () => {
         try {
@@ -49,6 +78,54 @@ const PublishTrip = ({ onBack, onSuccess, onLogout }) => {
         }
     };
 
+    const calculateFare = useCallback(async () => {
+        if (!formData.fromLocation.trim() || !formData.toLocation.trim()) {
+            return;
+        }
+
+        setCalculating(true);
+        try {
+            // Calculate fare for current passenger count
+            const fare = await PricingService.calculateFareFromAddresses(
+                formData.fromLocation,
+                formData.toLocation,
+                formData.vehicleType,
+                formData.availableSeats
+            );
+
+            setFareDetails(fare);
+
+            // Get breakdown for different passenger counts
+            const breakdownData = await PricingService.getFareBreakdown(
+                formData.fromLocation,
+                formData.toLocation,
+                formData.vehicleType
+            );
+
+            setFareBreakdown(breakdownData.breakdowns);
+
+            // Auto-fill price if not set
+            if (!formData.pricePerSeat && fare.perPersonFare) {
+                setFormData(prev => ({
+                    ...prev,
+                    pricePerSeat: fare.perPersonFare.toString()
+                }));
+            }
+
+            toast.success('Fare calculated successfully!', {
+                icon: '✅',
+                duration: 3000
+            });
+        } catch (error) {
+            console.error('Error calculating fare:', error);
+            toast.error('Could not calculate fare. Please enter price manually.', {
+                duration: 4000
+            });
+        } finally {
+            setCalculating(false);
+        }
+    }, [formData.fromLocation, formData.toLocation, formData.vehicleType, formData.availableSeats]);
+
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({
@@ -61,7 +138,7 @@ const PublishTrip = ({ onBack, onSuccess, onLogout }) => {
         setFormData(prev => ({
             ...prev,
             vehicleType: type,
-            availableSeats: type === 'bike' ? 1 : 3 // Reset seats default
+            availableSeats: type === 'bike' ? 1 : 3
         }));
     };
 
@@ -75,7 +152,7 @@ const PublishTrip = ({ onBack, onSuccess, onLogout }) => {
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-
+        // Validation
         if (!formData.fromLocation.trim()) {
             toast.error('Please enter pickup location');
             return;
@@ -92,6 +169,10 @@ const PublishTrip = ({ onBack, onSuccess, onLogout }) => {
             toast.error('Please select travel time');
             return;
         }
+        if (!formData.pricePerSeat) {
+            toast.error('Please set price per seat');
+            return;
+        }
 
         setLoading(true);
 
@@ -102,6 +183,7 @@ const PublishTrip = ({ onBack, onSuccess, onLogout }) => {
                 return;
             }
 
+            // Prepare trip data with fare calculation details
             const baseTripData = {
                 user_id: user.id,
                 driver_id: driverId,
@@ -109,30 +191,32 @@ const PublishTrip = ({ onBack, onSuccess, onLogout }) => {
                 available_seats: parseInt(formData.availableSeats),
                 from_location: formData.fromLocation.trim(),
                 to_location: formData.toLocation.trim(),
+                travel_date: formData.travelDate,
                 travel_time: formData.travelTime,
-                price_per_seat: formData.pricePerSeat ? parseFloat(formData.pricePerSeat) : null,
+                price_per_seat: Math.round(parseFloat(formData.pricePerSeat)),
                 status: 'active',
-                // New Fields
                 ladies_only: formData.ladiesOnly,
                 no_smoking: formData.noSmoking,
-                pet_friendly: formData.petFriendly
+                pet_friendly: formData.petFriendly,
+                is_recurring: formData.isRecurring,
+                // Store fare calculation details
+                distance_km: fareDetails?.routeInfo?.distanceKm ? Math.round(fareDetails.routeInfo.distanceKm) : null,
+                duration_min: fareDetails?.routeInfo?.durationMin ? Math.round(fareDetails.routeInfo.durationMin) : null,
+                calculated_price: fareDetails?.perPersonFare ? Math.round(fareDetails.perPersonFare) : null,
+                fare_tier: fareDetails?.tier || null,
+                min_passengers: fareDetails?.minPassengersRequired || null,
+                fare_details: fareDetails || null
             };
 
-            const tripsToInsert = [];
+            const tripsToInsert = [baseTripData];
 
-            // Single Trip
-            if (!formData.isRecurring) {
-                tripsToInsert.push({
-                    ...baseTripData,
-                    travel_date: formData.travelDate
-                });
-            } else {
-                // Recurring Logic: Create trips for next 5 days
-                // (Simple implementation as requested for "Repeat Mon-Fri" flow)
+            // If recurring, create additional trips
+            if (formData.isRecurring) {
                 const startDate = new Date(formData.travelDate);
-                for (let i = 0; i < 5; i++) { // Generate for 5 occurrences including start date
+                for (let i = 1; i < 5; i++) {
                     const nextDate = new Date(startDate);
                     nextDate.setDate(startDate.getDate() + i);
+
                     tripsToInsert.push({
                         ...baseTripData,
                         travel_date: nextDate.toISOString().split('T')[0],
@@ -148,15 +232,149 @@ const PublishTrip = ({ onBack, onSuccess, onLogout }) => {
 
             if (error) throw error;
 
-            toast.success(formData.isRecurring ? 'Recurring trips published!' : 'Trip published successfully!');
-            if (onSuccess) onSuccess(data);
+            // Show success message
+            toast.success(
+                formData.isRecurring
+                    ? 'Recurring trips published successfully!'
+                    : 'Trip published successfully!',
+                {
+                    duration: 5000,
+                    icon: '🎉'
+                }
+            );
+
+            // Navigate back on success
+            if (onSuccess) {
+                setTimeout(() => onSuccess(data), 1000);
+            }
 
         } catch (error) {
             console.error('Error publishing trip:', error);
-            toast.error('Failed to publish trip. Check connection.');
+            toast.error('Failed to publish trip. Please try again.', {
+                duration: 5000
+            });
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleSeatChange = (seats) => {
+        setFormData(prev => ({
+            ...prev,
+            availableSeats: seats
+        }));
+
+        // Recalculate fare with new passenger count
+        if (formData.fromLocation && formData.toLocation) {
+            setTimeout(() => calculateFare(), 500);
+        }
+    };
+
+    const renderFareDetails = () => {
+        if (!fareDetails) return null;
+
+        return (
+            <div className="fare-details-card">
+                <div className="fare-header">
+                    <Calculator size={20} />
+                    <h3>Calculated Fare</h3>
+                    {calculating ? (
+                        <span className="calculating-badge">
+                            <Loader size={14} className="spin" />
+                            Calculating...
+                        </span>
+                    ) : (
+                        <span className="success-badge">✓ Calculated</span>
+                    )}
+                </div>
+
+                <div className="fare-body">
+                    <div className="fare-main">
+                        <div>
+                            <span className="fare-label">Per Person:</span>
+                            <div className="fare-subtext">
+                                {formData.availableSeats} seat{formData.availableSeats > 1 ? 's' : ''} available
+                            </div>
+                        </div>
+                        <div className="fare-amount">₹{fareDetails.perPersonFare}</div>
+                    </div>
+
+                    <div className="fare-breakdown">
+                        <div className="breakdown-item">
+                            <span>Distance:</span>
+                            <span className="breakdown-value">{fareDetails.routeInfo?.distance}</span>
+                        </div>
+                        <div className="breakdown-item">
+                            <span>Duration:</span>
+                            <span className="breakdown-value">{fareDetails.routeInfo?.duration}</span>
+                        </div>
+                        <div className="breakdown-item">
+                            <span>Tier:</span>
+                            <span className="tier-badge">{fareDetails.tier}</span>
+                        </div>
+                        <div className="breakdown-item">
+                            <span>Min Passengers:</span>
+                            <span className="breakdown-value">{fareDetails.minPassengersRequired}</span>
+                        </div>
+                    </div>
+
+                    {/* Savings section */}
+                    {fareDetails.savings && (
+                        <div className="savings-section">
+                            <div className="savings-item">
+                                <AlertCircle size={16} />
+                                <span>Save {fareDetails.savings.vsTaxi}% vs Taxi</span>
+                                <span className="savings-price">(Taxi: ₹{fareDetails.savings.taxiPrice})</span>
+                            </div>
+                            <div className="savings-item">
+                                <AlertCircle size={16} />
+                                <span>Save {fareDetails.savings.vsBus}% vs Bus</span>
+                                <span className="savings-price">(Bus: ₹{fareDetails.savings.busPrice})</span>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Passenger breakdown */}
+                    {fareBreakdown.length > 0 && (
+                        <div className="passenger-breakdown">
+                            <p className="breakdown-title">Price comparison:</p>
+                            <div className="passenger-grid">
+                                {fareBreakdown.map((item, index) => (
+                                    <div
+                                        key={index}
+                                        className={`passenger-item ${item.passengers === formData.availableSeats ? 'active' : ''}`}
+                                        onClick={() => handleSeatChange(item.passengers)}
+                                    >
+                                        <span className="passenger-count">{item.passengers} person{item.passengers > 1 ? 's' : ''}</span>
+                                        <span className="passenger-price">₹{item.fare}</span>
+                                        {item.passengers === formData.availableSeats && (
+                                            <div className="selected-indicator">✓ Selected</div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Driver earnings info */}
+                    {fareDetails.driverEarningPerPerson && (
+                        <div className="driver-earnings">
+                            <p className="earnings-title">Driver Earnings:</p>
+                            <div className="earnings-grid">
+                                <div className="earnings-item">
+                                    <span>Per person:</span>
+                                    <span>₹{fareDetails.driverEarningPerPerson}</span>
+                                </div>
+                                <div className="earnings-item">
+                                    <span>Total (all seats):</span>
+                                    <span>₹{fareDetails.totalDriverEarning}</span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
     };
 
     return (
@@ -168,24 +386,7 @@ const PublishTrip = ({ onBack, onSuccess, onLogout }) => {
                 </button>
                 <h1>Publish a Trip</h1>
                 {onLogout && (
-                    <button
-                        className="logout-btn-header"
-                        onClick={onLogout}
-                        style={{
-                            background: 'rgba(239, 68, 68, 0.1)',
-                            border: '1px solid rgba(239, 68, 68, 0.3)',
-                            borderRadius: '12px',
-                            padding: '8px 12px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            color: '#ef4444',
-                            fontSize: '14px',
-                            fontWeight: '500',
-                            cursor: 'pointer',
-                            transition: 'all 0.2s'
-                        }}
-                    >
+                    <button className="logout-btn-header" onClick={onLogout}>
                         <LogOut size={18} />
                         Logout
                     </button>
@@ -240,12 +441,12 @@ const PublishTrip = ({ onBack, onSuccess, onLogout }) => {
                         </div>
                     ) : (
                         <div className="seats-selector">
-                            {[1, 2, 3, 4, 5, 6].map(num => (
+                            {[1, 2, 3, 4].map(num => (
                                 <button
                                     key={num}
                                     type="button"
                                     className={`seat-btn ${formData.availableSeats === num ? 'active' : ''}`}
-                                    onClick={() => setFormData(prev => ({ ...prev, availableSeats: num }))}
+                                    onClick={() => handleSeatChange(num)}
                                 >
                                     {num}
                                 </button>
@@ -254,7 +455,10 @@ const PublishTrip = ({ onBack, onSuccess, onLogout }) => {
                     )}
                 </div>
 
-                {/* Preferences (Feature 8) */}
+                {/* Fare Calculation Display */}
+                {renderFareDetails()}
+
+                {/* Preferences */}
                 <div className="form-section">
                     <label className="section-label">Preferences</label>
                     <div className="preferences-grid">
@@ -294,6 +498,12 @@ const PublishTrip = ({ onBack, onSuccess, onLogout }) => {
                         value={formData.fromLocation}
                         onChange={handleChange}
                         className="form-input"
+                        onPlaceSelected={(place) => {
+                            setFormData(prev => ({
+                                ...prev,
+                                fromLocation: place.formatted_address || place.name
+                            }));
+                        }}
                     />
                 </div>
 
@@ -309,6 +519,12 @@ const PublishTrip = ({ onBack, onSuccess, onLogout }) => {
                         value={formData.toLocation}
                         onChange={handleChange}
                         className="form-input"
+                        onPlaceSelected={(place) => {
+                            setFormData(prev => ({
+                                ...prev,
+                                toLocation: place.formatted_address || place.name
+                            }));
+                        }}
                     />
                 </div>
 
@@ -343,7 +559,7 @@ const PublishTrip = ({ onBack, onSuccess, onLogout }) => {
                     </div>
                 </div>
 
-                {/* Recurring Option (Feature 2) */}
+                {/* Recurring Option */}
                 <div className="form-section checkbox-section">
                     <label className="checkbox-label">
                         <input
@@ -355,11 +571,24 @@ const PublishTrip = ({ onBack, onSuccess, onLogout }) => {
                     </label>
                 </div>
 
-                {/* Price per Seat (Optional) */}
+                {/* Price per Seat */}
                 <div className="form-section">
                     <label className="section-label">
                         <IndianRupee size={18} />
-                        Price per Seat (Optional)
+                        Price per Seat
+                        <button
+                            type="button"
+                            className="calculate-btn"
+                            onClick={calculateFare}
+                            disabled={calculating || !formData.fromLocation || !formData.toLocation}
+                        >
+                            {calculating ? (
+                                <>
+                                    <Loader size={14} className="spin" />
+                                    Calculating
+                                </>
+                            ) : 'Calculate'}
+                        </button>
                     </label>
                     <div className="price-input-wrapper">
                         <span className="currency-symbol">₹</span>
@@ -371,17 +600,48 @@ const PublishTrip = ({ onBack, onSuccess, onLogout }) => {
                             value={formData.pricePerSeat}
                             onChange={handleChange}
                             min="0"
+                            step="10"
                         />
                     </div>
+
+                    {/* Price comparison */}
+                    {fareDetails && formData.pricePerSeat && (
+                        <div className="price-comparison">
+                            {parseFloat(formData.pricePerSeat) > fareDetails.perPersonFare ? (
+                                <span className="price-higher">
+                                    ₹{parseFloat(formData.pricePerSeat) - fareDetails.perPersonFare} higher than calculated
+                                </span>
+                            ) : parseFloat(formData.pricePerSeat) < fareDetails.perPersonFare ? (
+                                <span className="price-lower">
+                                    ₹{fareDetails.perPersonFare - parseFloat(formData.pricePerSeat)} lower than calculated
+                                </span>
+                            ) : (
+                                <span className="price-match">✓ Matches calculated price</span>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Help text */}
+                    {!formData.pricePerSeat && (
+                        <div className="price-help">
+                            <AlertCircle size={14} />
+                            <span>Enter price or click "Calculate" for automatic pricing</span>
+                        </div>
+                    )}
                 </div>
 
                 {/* Submit Button */}
                 <button
                     type="submit"
                     className="submit-btn"
-                    disabled={loading}
+                    disabled={loading || calculating}
                 >
-                    {loading ? 'Publishing...' : 'Publish Trip'}
+                    {loading ? (
+                        <>
+                            <Loader size={18} className="spin" />
+                            Publishing...
+                        </>
+                    ) : 'Publish Trip'}
                 </button>
             </form>
         </div>

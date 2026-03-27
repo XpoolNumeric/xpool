@@ -1,16 +1,27 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Car, Bike, MapPin, Calendar, Clock, Users, User, MessageCircle, Send, Check } from 'lucide-react';
+import { ArrowLeft, Car, Bike, MapPin, Calendar, Clock, Users, User, MessageCircle, Send, Check, Navigation } from 'lucide-react';
 import { supabase } from '../../../supabaseClient';
 import toast from 'react-hot-toast';
-import { createNotification } from '../../../utils/notificationHelper';
+import LocationInput from '../../common/LocationInput';
 import '../css/TripBooking.css';
 
 const TripBooking = ({ trip, onBack, onSuccess }) => {
     const [seatsRequested, setSeatsRequested] = useState(1);
     const [message, setMessage] = useState('');
     const [paymentMode, setPaymentMode] = useState('cod');
+    const [pickupLocation, setPickupLocation] = useState('');
     const [loading, setLoading] = useState(false);
     const [bookingComplete, setBookingComplete] = useState(false);
+
+    // Helper function to add timeout to promises
+    const withTimeout = (promise, timeoutMs = 10000) => {
+        return Promise.race([
+            promise,
+            new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Request timeout. Please try again.')), timeoutMs)
+            )
+        ]);
+    };
 
     const formatDate = (dateStr) => {
         return new Date(dateStr).toLocaleDateString('en-IN', {
@@ -30,79 +41,70 @@ const TripBooking = ({ trip, onBack, onSuccess }) => {
     };
 
     const handleBooking = async () => {
+        if (loading) return;
+
         setLoading(true);
+        console.log('[TripBooking] Starting booking process...');
 
         try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) {
+            if (!trip || !trip.id) {
+                throw new Error('Invalid trip data');
+            }
+
+            // Get current session with fresh token
+            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+            if (sessionError || !session) {
                 toast.error('Please login to book a trip');
                 setLoading(false);
                 return;
             }
 
-            // Check if user already has a pending request for this trip
-            // Using .maybeSingle() to avoid error when 0 rows found
-            const { data: existingRequest, error: checkError } = await supabase
-                .from('booking_requests')
-                .select('id')
-                .eq('trip_id', trip.id)
-                .eq('passenger_id', user.id)
-                .in('status', ['pending', 'approved'])
-                .maybeSingle();
+            console.log('[TripBooking] Using book-trip edge function...');
 
-            if (checkError) {
-                console.error('Error checking existing booking:', checkError);
-                // Continue anyway if it's just a check failure
-            }
-
-            if (existingRequest) {
-                toast.error('You already have a booking for this trip');
-                setLoading(false);
-                return;
-            }
-
-            console.log('Sending booking request for trip:', trip.id);
-            const bookingData = {
-                trip_id: trip.id,
-                passenger_id: user.id,
-                seats_requested: seatsRequested,
-                message: message.trim() || null,
-                status: 'pending',
-                payment_mode: paymentMode
-            };
-
-            const { error: insertError } = await supabase
-                .from('booking_requests')
-                .insert([bookingData]);
-
-            if (insertError) {
-                console.error('Booking Insert Error:', insertError);
-                throw insertError;
-            }
-
-            // Notify Driver
-            try {
-                if (trip.user_id) {
-                    await createNotification(
-                        trip.user_id,
-                        'booking_pending',
-                        'New Booking Request',
-                        `You have a new booking request for your trip to ${trip.to_location}.`,
-                        trip.id
-                    );
-                } else {
-                    console.warn('Driver ID missing, skipping notification');
+            const { data, error } = await supabase.functions.invoke('book-trip', {
+                body: {
+                    trip_id: trip.id,
+                    passenger_id: session.user.id,
+                    seats_requested: seatsRequested,
+                    message: message.trim() || null,
+                    payment_mode: paymentMode,
+                    passenger_location: pickupLocation.trim() || null,
+                    passenger_destination: trip.to_location
+                },
+                headers: {
+                    Authorization: `Bearer ${session.access_token}`
                 }
-            } catch (notifErr) {
-                console.error('Failed to send notification to driver:', notifErr);
-                // Don't fail the whole booking if just notification fails
+            });
+
+            if (error) {
+                console.error('[TripBooking] Edge function error:', error);
+                // Extract the actual error message from the response body
+                let errorMessage = 'Failed to connect to booking service';
+                try {
+                    if (error.context && error.context.json) {
+                        const errorBody = await error.context.json();
+                        console.error('[TripBooking] Error body:', errorBody);
+                        errorMessage = errorBody?.error || error.message || errorMessage;
+                    } else {
+                        errorMessage = error.message || errorMessage;
+                    }
+                } catch (parseErr) {
+                    console.error('[TripBooking] Could not parse error body:', parseErr);
+                    errorMessage = error.message || errorMessage;
+                }
+                throw new Error(errorMessage);
             }
 
+            if (!data?.success) {
+                throw new Error(data?.error || 'Booking failed');
+            }
+
+            console.log('[TripBooking] Booking created successfully:', data.data);
             setBookingComplete(true);
             toast.success('Booking request sent!');
 
         } catch (error) {
-            console.error('Full Error booking trip:', error);
+            console.error('[TripBooking] Error:', error);
             toast.error(error.message || 'Failed to send booking request');
         } finally {
             setLoading(false);
@@ -236,6 +238,26 @@ const TripBooking = ({ trip, onBack, onSuccess }) => {
                     </span>
                 </div>
 
+                {/* Pickup Location */}
+                <div className="form-section">
+                    <label className="section-label">
+                        <Navigation size={18} />
+                        Pickup Location
+                    </label>
+                    <LocationInput
+                        name="pickupLocation"
+                        placeholder="Enter your pickup point"
+                        value={pickupLocation}
+                        onChange={(e) => setPickupLocation(e.target.value)}
+                        onPlaceSelect={(prediction) => {
+                            setPickupLocation(prediction.description || prediction.structured_formatting?.main_text || '');
+                        }}
+                        Icon={MapPin}
+                        iconColor="green"
+                        className="pickup-input-group"
+                    />
+                </div>
+
                 {/* Payment Mode Selection */}
                 <div className="form-section">
                     <label className="section-label">
@@ -309,4 +331,3 @@ const TripBooking = ({ trip, onBack, onSuccess }) => {
 };
 
 export default TripBooking;
-

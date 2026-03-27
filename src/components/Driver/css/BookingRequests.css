@@ -294,6 +294,28 @@
     color: #facc15;
 }
 
+/* Passenger Pickup/Destination Route */
+.passenger-route {
+    background: #f8fafc;
+    border-radius: 0.75rem;
+    padding: 0.6rem 0.85rem;
+    margin: 0.5rem 0 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    border: 1px solid #f1f5f9;
+}
+
+.passenger-point {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #475569;
+}
+
+
 /* Payment Badge */
 .payment-badge {
     margin-top: 0.75rem;
@@ -402,6 +424,7 @@
         gap: 0.75rem;
     }
 }
+
 /* Add these styles to your existing BookingRequests.css */
 
 /* Header Stats */
@@ -540,6 +563,7 @@
         opacity: 0;
         transform: translateY(-10px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -571,21 +595,21 @@
         gap: 1rem;
         padding: 1rem;
     }
-    
+
     .requests-header h1 {
         order: -1;
         align-self: center;
     }
-    
+
     .header-stats {
         width: 100%;
         justify-content: center;
     }
-    
+
     .passenger-info {
         flex-wrap: wrap;
     }
-    
+
     .passenger-contact-actions {
         margin-left: auto;
     }
@@ -596,11 +620,11 @@
         flex-direction: column;
         align-items: flex-start;
     }
-    
+
     .passenger-contact {
         flex-direction: column;
     }
-    
+
     .passenger-phone-link {
         width: 100%;
         justify-content: center;

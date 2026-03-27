@@ -6,11 +6,7 @@ import '../css/DriverHome.css';
 
 const DriverHome = ({
     session,
-    onPublishTrip,
-    onMyTrips,
-    onBookingRequests,
-    onProfile,
-    onWallet,
+    onNavigate,
     onLogout
 }) => {
     const [loading, setLoading] = useState(true);
@@ -22,20 +18,31 @@ const DriverHome = ({
     const [recentTrips, setRecentTrips] = useState([]);
 
     useEffect(() => {
+        let cleanupSubscriptions = null;
+
         if (session?.user) {
             fetchDriverData();
-            setupRealtimeSubscriptions();
+            cleanupSubscriptions = setupRealtimeSubscriptions();
         } else {
             // Safety check: If loaded without session, don't get stuck in loading
             setLoading(false);
-            // Optional: You could trigger onLogout() here if strict
         }
-    }, [session]);
+
+        return () => {
+            if (cleanupSubscriptions) cleanupSubscriptions();
+        };
+    }, [session?.user?.id]);
 
     const fetchDriverData = async () => {
         try {
             setLoading(true);
-            const userId = session.user.id;
+            const userId = session?.user?.id;
+
+            if (!userId) {
+                console.warn('[DriverHome] No user ID found during fetch, aborting');
+                setLoading(false);
+                return;
+            }
 
             // Fetch driver profile
             const { data: profileData, error: profileError } = await supabase
@@ -109,9 +116,11 @@ const DriverHome = ({
 
         const userId = session.user.id;
 
-        // Subscribe to booking requests updates
+        // Channel names are scoped to the userId so that when DriverHome remounts
+        // on app resume, the new subscription does not collide with the previous
+        // channel that may still be in the process of closing.
         const bookingChannel = supabase
-            .channel('driver_home_bookings')
+            .channel(`driver_home_bookings_${userId}`)
             .on('postgres_changes', {
                 event: '*',
                 schema: 'public',
@@ -131,7 +140,7 @@ const DriverHome = ({
 
         // Subscribe to trips updates
         const tripsChannel = supabase
-            .channel('driver_home_trips')
+            .channel(`driver_home_trips_${userId}`)
             .on('postgres_changes', {
                 event: '*',
                 schema: 'public',
@@ -165,12 +174,18 @@ const DriverHome = ({
     };
 
     const formatTime = (timeString) => {
-        if (!timeString) return '';
-        const [hours, minutes] = timeString.split(':');
-        const hour = parseInt(hours);
-        const ampm = hour >= 12 ? 'PM' : 'AM';
-        const displayHour = hour % 12 || 12;
-        return `${displayHour}:${minutes} ${ampm}`;
+        if (!timeString || typeof timeString !== 'string') return '';
+        try {
+            const [hours, minutes] = timeString.split(':');
+            const hour = parseInt(hours);
+            if (isNaN(hour)) return timeString;
+            const ampm = hour >= 12 ? 'PM' : 'AM';
+            const displayHour = hour % 12 || 12;
+            return `${displayHour}:${minutes} ${ampm}`;
+        } catch (e) {
+            console.warn('Error formatting time:', timeString, e);
+            return timeString || '';
+        }
     };
 
     const getStatusClass = (status) => {
@@ -211,7 +226,7 @@ const DriverHome = ({
                         <h1 className="driver-name">{driverName}</h1>
                     </div>
                     <div className="header-actions">
-                        <button className="icon-btn" onClick={onProfile}>
+                        <button className="icon-btn" onClick={() => onNavigate('profile')}>
                             <User size={22} />
                         </button>
                         <button className="icon-btn" onClick={onLogout}>
@@ -225,7 +240,7 @@ const DriverHome = ({
             <div className="driver-content">
                 {/* Stats Grid */}
                 <div className="stats-grid">
-                    <div className="stat-card active" onClick={onMyTrips}>
+                    <div className="stat-card active" onClick={() => onNavigate('myTrips')}>
                         <div className="stat-icon">
                             <MapPin size={24} />
                         </div>
@@ -235,7 +250,7 @@ const DriverHome = ({
                         </div>
                     </div>
 
-                    <div className="stat-card pending" onClick={onBookingRequests}>
+                    <div className="stat-card pending" onClick={() => onNavigate('bookingRequests')}>
                         <div className="stat-icon">
                             <Bell size={24} />
                         </div>
@@ -250,7 +265,7 @@ const DriverHome = ({
                 </div>
 
                 {/* Publish Trip Button */}
-                <button className="publish-trip-btn" onClick={onPublishTrip}>
+                <button className="publish-trip-btn" onClick={() => onNavigate('publishTrip')}>
                     <div className="btn-icon">
                         <Plus size={28} />
                     </div>
@@ -265,18 +280,18 @@ const DriverHome = ({
                 <div className="quick-actions">
                     <h2 className="section-title">Quick Actions</h2>
                     <div className="actions-grid">
-                        <button className="action-card" onClick={onMyTrips}>
+                        <button className="action-card" onClick={() => onNavigate('myTrips')}>
                             <List size={32} />
                             <span>My Trips</span>
                         </button>
-                        <button className="action-card" onClick={onBookingRequests}>
+                        <button className="action-card" onClick={() => onNavigate('bookingRequests')}>
                             <Bell size={32} />
                             <span>Requests</span>
                             {stats.pendingRequests > 0 && (
                                 <div className="action-badge">{stats.pendingRequests}</div>
                             )}
                         </button>
-                        <button className="action-card" onClick={onWallet}>
+                        <button className="action-card" onClick={() => onNavigate('driverWallet')}>
                             <Wallet size={32} />
                             <span>Wallet</span>
                         </button>
@@ -288,7 +303,7 @@ const DriverHome = ({
                     <div className="section-header">
                         <h2 className="section-title">Recent Trips</h2>
                         {recentTrips.length > 0 && (
-                            <button className="view-all-btn" onClick={onMyTrips}>
+                            <button className="view-all-btn" onClick={() => onNavigate('myTrips')}>
                                 View All
                             </button>
                         )}
@@ -301,7 +316,7 @@ const DriverHome = ({
                     ) : (
                         <div className="trips-list">
                             {recentTrips.map(trip => (
-                                <div key={trip.id} className="trip-card" onClick={onMyTrips}>
+                                <div key={trip.id} className="trip-card" onClick={() => onNavigate('myTrips')}>
                                     <div className="trip-icon">
                                         <MapPin size={20} />
                                     </div>

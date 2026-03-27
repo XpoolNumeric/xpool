@@ -17,12 +17,20 @@ const LocationInput = ({ label, placeholder, value, onChange, onPlaceSelect, cla
     useEffect(() => {
         if (!placesLibrary) return;
 
-        // Try to initialize AutocompleteService
-        try {
-            autocompleteService.current = new placesLibrary.AutocompleteService();
-        } catch (error) {
-            console.warn('AutocompleteService not available, using Geocoding API fallback:', error);
-            setUseGeocodingFallback(true);
+        // Try to initialize AutocompleteService (Legacy) or check for AutocompleteSuggestion (New)
+        if (placesLibrary) {
+            if (placesLibrary.AutocompleteService) {
+                try {
+                    autocompleteService.current = new placesLibrary.AutocompleteService();
+                } catch (error) {
+                    console.warn('Legacy AutocompleteService init failing (expected for new keys):', error);
+                }
+            }
+
+            if (!placesLibrary.AutocompleteSuggestion && !autocompleteService.current) {
+                console.warn('Neither AutocompleteSuggestion nor AutocompleteService available. Using Geocoding fallback.');
+                setUseGeocodingFallback(true);
+            }
         }
     }, [placesLibrary]);
 
@@ -39,7 +47,7 @@ const LocationInput = ({ label, placeholder, value, onChange, onPlaceSelect, cla
             }
 
             const response = await fetch(
-                `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(input)}&components=country:IN&key=${API_KEYAIzaSyB7_39jR-kqbchHlKHzBtmWbtAbY8jrtbw}`
+                `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(input)}&components=country:IN&key=${API_KEYAIzaSyB7_39jR - kqbchHlKHzBtmWbtAbY8jrtbw}`
             );
             const data = await response.json();
 
@@ -79,32 +87,80 @@ const LocationInput = ({ label, placeholder, value, onChange, onPlaceSelect, cla
 
         if (val.length > 2) {
             // Use Geocoding API fallback if AutocompleteService is not available or explicitly enabled
-            if (useGeocodingFallback || !autocompleteService.current) {
+            if (useGeocodingFallback) {
                 console.log('Using Geocoding fallback for:', val);
                 fetchGeocodingPredictions(val);
             } else {
-                // Try AutocompleteService first
-                try {
-                    autocompleteService.current.getPlacePredictions({
-                        input: val,
-                        componentRestrictions: { country: 'in' }, // Restrict to India
-                    }, (results, status) => {
-                        console.log('Autocomplete status:', status);
-                        if (status === 'OK' && results) {
-                            setPredictions(results);
-                            setShowPredictions(true);
-                        } else if (status === 'ZERO_RESULTS') {
-                            setPredictions([]);
-                            setShowPredictions(false);
-                        } else {
-                            // Detailed error logging
-                            console.warn(`Autocomplete failed with status: ${status}. Switching to Geocoding API.`);
-                            setUseGeocodingFallback(true);
-                            fetchGeocodingPredictions(val);
-                        }
-                    });
-                } catch (err) {
-                    console.error('AutocompleteService crashed:', err);
+                // Try AutocompleteSuggestion (New API) first
+                if (placesLibrary && placesLibrary.AutocompleteSuggestion) {
+                    try {
+                        const request = {
+                            input: val,
+                            includedRegionCodes: ['in'], // Restrict to India
+                            // sessionToken: ... // Consider adding session token management later
+                        };
+
+                        // The new API is promise-based
+                        placesLibrary.AutocompleteSuggestion.fetchAutocompleteSuggestions(request)
+                            .then((response) => {
+                                const { suggestions } = response;
+                                if (suggestions && suggestions.length > 0) {
+                                    const formattedResults = suggestions.map(suggestion => {
+                                        const pp = suggestion.placePrediction;
+                                        return {
+                                            place_id: pp.placeId,
+                                            description: pp.text.text, // Full text
+                                            structured_formatting: {
+                                                main_text: pp.structuredFormat?.mainText?.text || pp.text.text,
+                                                secondary_text: pp.structuredFormat?.secondaryText?.text || ''
+                                            }
+                                        };
+                                    });
+                                    setPredictions(formattedResults);
+                                    setShowPredictions(true);
+                                } else {
+                                    setPredictions([]);
+                                    setShowPredictions(false);
+                                }
+                            })
+                            .catch((err) => {
+                                console.warn('AutocompleteSuggestion failed:', err);
+                                // Fallback to Geocoding if new API fails (e.g. billing, errors)
+                                setUseGeocodingFallback(true);
+                                fetchGeocodingPredictions(val);
+                            });
+                    } catch (err) {
+                        console.error('Error calling AutocompleteSuggestion:', err);
+                        setUseGeocodingFallback(true);
+                        fetchGeocodingPredictions(val);
+                    }
+                } else if (autocompleteService.current) {
+                    // Fallback to old AutocompleteService if new one isn't found (though it's deprecated)
+                    // This path might be dead if the service is fully removed for new keys, but good for safety.
+                    try {
+                        autocompleteService.current.getPlacePredictions({
+                            input: val,
+                            componentRestrictions: { country: 'in' },
+                        }, (results, status) => {
+                            if (status === 'OK' && results) {
+                                setPredictions(results);
+                                setShowPredictions(true);
+                            } else if (status === 'ZERO_RESULTS') {
+                                setPredictions([]);
+                                setShowPredictions(false);
+                            } else {
+                                console.warn(`Autocomplete failed with status: ${status}. Switching to Geocoding API.`);
+                                setUseGeocodingFallback(true);
+                                fetchGeocodingPredictions(val);
+                            }
+                        });
+                    } catch (err) {
+                        console.error('AutocompleteService crashed:', err);
+                        setUseGeocodingFallback(true);
+                        fetchGeocodingPredictions(val);
+                    }
+                } else {
+                    // No services available
                     setUseGeocodingFallback(true);
                     fetchGeocodingPredictions(val);
                 }

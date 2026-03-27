@@ -199,19 +199,9 @@ export const scheduleNotification = (travelDate, travelTime, callback) => {
  * @returns {boolean} True if journey can be started
  */
 export const canStartJourney = (travelDate, travelTime) => {
-    if (!isTripToday(travelDate)) {
-        return false;
-    }
-
-    // Allow starting journey 30 minutes before scheduled time
-    const tripDate = new Date(travelDate);
-    const [hours, minutes] = travelTime.split(':');
-    tripDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-
-    const now = new Date();
-    const thirtyMinutesBefore = new Date(tripDate.getTime() - (30 * 60 * 1000));
-
-    return now >= thirtyMinutesBefore;
+    // Return true immediately if the trip is today, regardless of time
+    // This allows the driver to start the ride at any time on the scheduled day.
+    return isTripToday(travelDate);
 };
 
 /**

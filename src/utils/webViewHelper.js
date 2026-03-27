@@ -242,10 +242,13 @@ export const getSafeSession = async (supabase, timeoutMs = 5000) => {
  * 1. this.lock(name, cb)
  * 2. this.lock.acquire(name, cb)
  */
-const UniversalLockAdapter = (name, callback) => {
+const UniversalLockAdapter = (name, ...args) => {
   console.log(`[AuthLock] Bypassing lock (function call) for: ${name}`);
-  // Support calls with just callback (some polyfills do this)
+  // Find the callback from arguments - robust way to handle signature variations
+  // Signature can be (name, cb) or (name, options, cb) or just (cb)
+  const callback = args.reverse().find(arg => typeof arg === 'function');
   const cb = typeof name === 'function' ? name : callback;
+
   return cb ? cb() : Promise.resolve();
 };
 
@@ -261,14 +264,29 @@ UniversalLockAdapter.request = async (name, callback) => {
 };
 
 /**
- * Get a lock adapter to resolve potential deadlocks
+ * Get a lock adapter that resolves Supabase lock issues
+ * This completely bypasses the locking mechanism to prevent deadlocks
  */
 export const getLockAdapter = () => {
-  // If not in WebView and navigator.locks exists, use it
-  if (navigator.locks && !isWebView()) {
-    return navigator.locks;
-  }
+  // Return a function that immediately executes the callback
+  // This satisfies both function and object patterns
+  const lockAdapter = (name, ...args) => {
+    console.log(`[AuthLock] Bypassing lock: ${name}`);
+    // Find the callback function
+    const callback = args.find(arg => typeof arg === 'function');
+    return callback ? callback() : Promise.resolve();
+  };
 
-  // Otherwise use our Universal bypass
-  return UniversalLockAdapter;
+  // Add method signatures
+  lockAdapter.acquire = async (name, callback) => {
+    console.log(`[AuthLock] Bypassing lock.acquire: ${name}`);
+    return await callback();
+  };
+
+  lockAdapter.release = () => {
+    console.log('[AuthLock] Lock release bypassed');
+    return Promise.resolve();
+  };
+
+  return lockAdapter;
 };

@@ -265,6 +265,31 @@
     color: var(--text-muted);
 }
 
+.driver-phone-text {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 0.35rem !important;
+    font-size: 0.9rem !important;
+    font-weight: 700 !important;
+    color: #0284c7 !important;
+}
+
+.driver-phone-text svg {
+    color: #16a34a;
+    flex-shrink: 0;
+}
+
+.driver-phone-text .phone-link {
+    color: #0284c7;
+    text-decoration: none;
+    font-weight: 700;
+}
+
+.driver-phone-text .phone-link:hover {
+    text-decoration: underline;
+}
+
 .call-btn {
     width: 3.25rem;
     height: 3.25rem;
@@ -421,4 +446,76 @@
     to {
         transform: rotate(360deg);
     }
+}
+
+/* Active Trip Pay Section */
+.active-trip-pay-section {
+    margin-top: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    background: var(--bg-white);
+    padding: 1.25rem;
+    border-radius: 1.25rem;
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--border-light);
+}
+
+.active-trip-banner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    color: #16a34a;
+    font-weight: 800;
+    font-size: 1.1rem;
+    padding-bottom: 0.5rem;
+}
+
+.pulse-dot {
+    width: 12px;
+    height: 12px;
+    background-color: #16a34a;
+    border-radius: 50%;
+    animation: pulse 1.5s infinite running;
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.7);
+    }
+    70% {
+        transform: scale(1);
+        box-shadow: 0 0 0 10px rgba(22, 163, 74, 0);
+    }
+    100% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(22, 163, 74, 0);
+    }
+}
+
+.pay-now-btn {
+    width: 100%;
+    background-color: var(--text-dark);
+    color: var(--primary-yellow);
+    padding: 1.15rem;
+    border-radius: 1rem;
+    font-weight: 800;
+    font-size: 1.1rem;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--shadow-md);
+    transition: all 0.2s ease;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.pay-now-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.15);
+    background-color: #000;
 }

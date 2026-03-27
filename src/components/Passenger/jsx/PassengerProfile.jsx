@@ -42,7 +42,8 @@ const PassengerProfile = ({ onBack, onLogout }) => {
                 .from('profiles')
                 .select('*')
                 .eq('id', user.id)
-                .single();
+                .eq('id', user.id)
+                .maybeSingle();
 
             if (error) throw error;
 

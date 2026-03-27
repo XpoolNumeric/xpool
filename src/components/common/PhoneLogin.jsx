@@ -1,15 +1,74 @@
 import React, { useState } from 'react';
-import './AuthSelection.css'; // Reusing for consistency, or create PhoneLogin.css
+import { supabase } from '../../supabaseClient';
+import toast from 'react-hot-toast';
+import './AuthSelection.css';
 
-const PhoneLogin = ({ onBack, onProceed }) => {
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+const PhoneLogin = ({ onBack, onProceed, isSignupFlow = false }) => {
     const [phoneNumber, setPhoneNumber] = useState('');
+    const [loading, setLoading] = useState(false);
 
-    const handleSubmit = (e) => {
+    /**
+     * Call a Supabase edge function with automatic fallback.
+     * If the user has a valid session, use supabase.functions.invoke().
+     * Otherwise, use a direct fetch() with the anon key as Bearer token.
+     * This prevents the 406 (Unauthorized) error during signup when
+     * no JWT session exists yet.
+     */
+    const invokeEdgeFunction = async (fnName, body) => {
+        const { data: { session } } = await supabase.auth.getSession();
+
+        if (session?.access_token) {
+            // User has a session — normal invoke will attach the JWT automatically
+            const { data, error } = await supabase.functions.invoke(fnName, { body });
+            if (error) throw error;
+            return data;
+        }
+
+        // No session (e.g. during signup) — call directly with anon key
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/${fnName}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                'apikey': SUPABASE_ANON_KEY,
+            },
+            body: JSON.stringify(body),
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error || `Edge function error (${res.status})`);
+        return data;
+    };
+
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        if (phoneNumber.length >= 10) {
-            onProceed(phoneNumber);
-        } else {
-            alert("Please enter a valid phone number");
+        const trimmed = phoneNumber.trim();
+        const digitsOnly = trimmed.replace(/\D/g, '');
+        if (digitsOnly.length < 10) {
+            toast.error('Please enter a valid phone number (at least 10 digits).');
+            return;
+        }
+
+        // Ensure E.164 format e.g. +919876543210
+        const formatted = trimmed.startsWith('+') ? trimmed : `+91${digitsOnly}`;
+
+        try {
+            setLoading(true);
+            const { error } = await supabase.auth.signInWithOtp({
+                phone: formatted,
+            });
+            if (error) throw error;
+
+            toast.success('OTP sent to your mobile number!');
+            onProceed(formatted);
+        } catch (error) {
+            console.error('[PhoneLogin] OTP send error:', error);
+            toast.error(error.message || 'Failed to send OTP. Please try again.');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -25,24 +84,38 @@ const PhoneLogin = ({ onBack, onProceed }) => {
                 <h1 className="auth-title">XPOOL</h1>
             </div>
 
-            <div className="login-form-container" style={{paddingTop: '40px'}}>
-                <h2 className="form-title" style={{textAlign: 'left'}}>Enter Your Phone Number<br/>To Drive</h2>
-                
+            <div className="login-form-container" style={{ paddingTop: '40px' }}>
+                <h2 className="form-title" style={{ textAlign: 'left' }}>
+                    {isSignupFlow
+                        ? <>Verify your<br />Mobile Number</>
+                        : <>Enter Your Phone Number<br />To Continue</>}
+                </h2>
+                {isSignupFlow && (
+                    <p style={{ color: '#888', fontSize: '14px', marginTop: '8px' }}>
+                        Step 2 of 2 — We'll send an OTP to confirm your number.
+                    </p>
+                )}
+
                 <form className="login-form" onSubmit={handleSubmit}>
                     <div className="input-group">
-                         <input
+                        <input
                             type="tel"
-                            placeholder="+91"
+                            placeholder="+91XXXXXXXXXX"
                             className="login-input"
                             value={phoneNumber}
                             onChange={(e) => setPhoneNumber(e.target.value)}
                             required
-                            style={{marginTop: '20px'}}
+                            style={{ marginTop: '20px' }}
                         />
                     </div>
 
-                    <button type="submit" className="auth-btn btn-login" style={{marginTop: 'auto', marginBottom: '20px'}}>
-                        Proceed
+                    <button
+                        type="submit"
+                        className="auth-btn btn-login"
+                        style={{ marginTop: 'auto', marginBottom: '20px' }}
+                        disabled={loading}
+                    >
+                        {loading ? 'Sending OTP…' : 'Send OTP'}
                     </button>
                 </form>
             </div>

@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { getStorageAdapter, logEnvironmentInfo, isWebView } from './utils/webViewHelper'
+import { getStorageAdapter, logEnvironmentInfo, isWebView, getLockAdapter } from './utils/webViewHelper'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -9,10 +9,10 @@ logEnvironmentInfo();
 
 const supabaseOptions = {
     auth: {
-        // DISABLE internal persistence to prevent WebView hangs (we handle this manually in App.jsx)
-        persistSession: false,
-        // DISABLE auto-refresh to prevent network loops/hangs
-        autoRefreshToken: false,
+        // CHANGE THIS TO TRUE - Enable persistence
+        persistSession: true,
+        // Enable auto-refresh (but with careful handling)
+        autoRefreshToken: true,
         // Don't detect session in URL (not needed for mobile apps)
         detectSessionInUrl: false,
         // Use custom storage adapter that works in WebView
@@ -20,7 +20,9 @@ const supabaseOptions = {
         // Custom storage key for Xpool app
         storageKey: 'xpool-auth-token',
         // Flow type for authentication
-        flowType: 'pkce'
+        flowType: 'pkce',
+        // prevent deadlocks on devices with broken navigator.locks
+        lock: getLockAdapter()
     },
     global: {
         headers: {
@@ -41,12 +43,3 @@ const supabaseOptions = {
 }
 
 export const supabase = createClient(supabaseUrl, supabaseKey, supabaseOptions)
-//only for testing
-// console.log(
-//   'SUPABASE URL:',
-//   import.meta.env.https://zuppuxrammhisswduryw.supabase.co
-// )
-// console.log(
-//   'SUPABASE KEY:',
-//   import.meta.env.VITE_SUPABASE_ANON_KEY?.slice(0, 20)
-// )

@@ -9,6 +9,22 @@ const log = (msg, data = null) => {
 };
 
 /**
+ * Wraps a promise with a timeout so network hangs on app resume
+ * (e.g. cold connections, stale sockets) never block indefinitely.
+ *
+ * @param {Promise} promise - The promise to race
+ * @param {number}  ms      - Timeout in milliseconds (default 5000)
+ * @returns {Promise}       - Resolves/rejects with the original promise, or rejects on timeout
+ */
+const withTimeout = (promise, ms = 5000) =>
+    Promise.race([
+        promise,
+        new Promise((_, reject) =>
+            setTimeout(() => reject(new Error(`[UserStateSync] Request timed out after ${ms}ms`)), ms)
+        ),
+    ]);
+
+/**
  * Updates the user's current screen and role in the database.
  * 
  * @param {string} userId - The user's ID
@@ -54,12 +70,19 @@ export const fetchStateFromBackend = async (userId) => {
     if (!userId) return null;
 
     try {
-        // 1. Fetch Profile (Screen & Role)
-        const { data: profile, error: profileError } = await supabase
+        // 1. Fetch Profile (Screen & Role) — wrapped in timeout to guard against
+        //    slow/stale network connections when the app resumes from background.
+        const profileQuery = supabase
             .from('profiles')
-            .select('last_screen, user_role')
+            .select('last_screen, user_role, full_name')
             .eq('id', userId)
             .single();
+
+        const { data: profile, error: profileError } = await withTimeout(profileQuery)
+            .catch((err) => {
+                console.warn('[UserStateSync] Profile fetch timed out or failed:', err.message);
+                return { data: null, error: err };
+            });
 
         if (profileError || !profile) {
             console.warn('[UserStateSync] Profile not found or error:', profileError?.message);
@@ -69,15 +92,22 @@ export const fetchStateFromBackend = async (userId) => {
         const result = {
             screen: profile.last_screen,
             role: profile.user_role,
+            full_name: profile.full_name,
             driverStatus: null
         };
 
-        // 2. If Driver, Fetch Driver Status
+        // 2. If Driver, Fetch Driver Status — also wrapped with timeout
         if (result.role === 'driver') {
-            const { data: drivers, error: driverError } = await supabase
+            const driverQuery = supabase
                 .from('drivers')
                 .select('*') // Select all to check for 'status' existence
                 .eq('user_id', userId);
+
+            const { data: drivers, error: driverError } = await withTimeout(driverQuery)
+                .catch((err) => {
+                    console.warn('[UserStateSync] Driver fetch timed out or failed:', err.message);
+                    return { data: null, error: err };
+                });
 
             if (!driverError && drivers && drivers.length > 0) {
                 // Helper to safely get lowercase status

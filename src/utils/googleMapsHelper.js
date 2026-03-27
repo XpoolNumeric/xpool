@@ -1,4 +1,6 @@
 import { supabase } from '../supabaseClient';
+import { Capacitor } from '@capacitor/core';
+import { Geolocation } from '@capacitor/geolocation';
 
 /**
  * Google Maps Helper Functions
@@ -163,30 +165,59 @@ export const startNavigation = async (origin, destination) => {
  * Get user's current location
  * @returns {Promise<object>} {lat, lng}
  */
-export const getCurrentLocation = () => {
-    return new Promise((resolve, reject) => {
-        if (!navigator.geolocation) {
-            reject(new Error('Geolocation is not supported by your browser'));
-            return;
-        }
+export const getCurrentLocation = async () => {
+    try {
+        if (Capacitor.isNativePlatform()) {
+            // First check permission status
+            const permission = await Geolocation.checkPermissions();
+            if (permission.location !== 'granted') {
+                const request = await Geolocation.requestPermissions();
+                if (request.location !== 'granted') {
+                    throw new Error('Location permission denied');
+                }
+            }
 
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                resolve({
-                    lat: position.coords.latitude,
-                    lng: position.coords.longitude,
-                });
-            },
-            (error) => {
-                reject(error);
-            },
-            {
+            // Get current position using Capacitor Geolocation
+            const position = await Geolocation.getCurrentPosition({
                 enableHighAccuracy: true,
                 timeout: 10000,
-                maximumAge: 0,
-            }
-        );
-    });
+                maximumAge: 0
+            });
+
+            return {
+                lat: position.coords.latitude,
+                lng: position.coords.longitude,
+            };
+        } else {
+            // Fallback for Web
+            return new Promise((resolve, reject) => {
+                if (!navigator.geolocation) {
+                    reject(new Error('Geolocation is not supported by your browser'));
+                    return;
+                }
+
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        resolve({
+                            lat: position.coords.latitude,
+                            lng: position.coords.longitude,
+                        });
+                    },
+                    (error) => {
+                        reject(error);
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 10000,
+                        maximumAge: 0,
+                    }
+                );
+            });
+        }
+    } catch (error) {
+        console.error('Error getting current location:', error);
+        throw error;
+    }
 };
 
 /**
@@ -219,12 +250,16 @@ export const calculateDistance = async (origin, destination) => {
             (response, status) => {
                 if (status === 'OK') {
                     const result = response.rows[0].elements[0];
-                    resolve({
-                        distance: result.distance.text,
-                        duration: result.duration.text,
-                        distanceValue: result.distance.value,
-                        durationValue: result.duration.value,
-                    });
+                    if (result.status === 'OK') {
+                        resolve({
+                            distance: result.distance.text,
+                            duration: result.duration.text,
+                            distanceValue: result.distance.value,
+                            durationValue: result.duration.value,
+                        });
+                    } else {
+                        reject(new Error(`Distance calculation failed for element: ${result.status}`));
+                    }
                 } else {
                     reject(new Error(`Distance calculation failed: ${status}`));
                 }

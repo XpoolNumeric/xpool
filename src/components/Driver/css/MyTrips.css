@@ -230,6 +230,11 @@
     color: #9b1c1c;
 }
 
+.status-badge.expired {
+    background: #fff3cd;
+    color: #856404;
+}
+
 /* Route Visualization */
 .trip-card-body {
     display: flex;
@@ -328,6 +333,12 @@
     border: 1px dashed #f6e05e;
     color: #b7791f;
     animation: pulse 2s infinite;
+}
+
+.incentive-badge.expired {
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    color: #856404;
 }
 
 /* Footer & Actions */
@@ -606,4 +617,53 @@
 
 .back-btn:active {
     transform: scale(0.95);
+}
+
+/* ── Passenger Insights (shown after edge-function validation) ── */
+.passenger-insights {
+    display: flex;
+    gap: 12px;
+    margin-top: 8px;
+    padding: 8px 12px;
+    background: #f8fafc;
+    border-radius: 10px;
+}
+
+.insight-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.insight-item.verified {
+    color: #059669;
+}
+
+.insight-item.pending {
+    color: #d97706;
+}
+
+/* ── Loading spinner inside START TRIP button ── */
+.loading-spinner-small {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(0, 0, 0, 0.12);
+    border-top-color: #1a202c;
+    border-radius: 50%;
+    animation: rotate 0.6s linear infinite;
+}
+
+/* ── Warning text in cancel modal ── */
+.warning-text {
+    color: #dc2626;
+    font-size: 0.85rem;
+    font-weight: 500;
+    margin-top: 8px;
+    padding: 8px 12px;
+    background: #fee2e2;
+    border-radius: 8px;
+    line-height: 1.4;
 }

@@ -3,7 +3,7 @@ import { supabase } from '../../supabaseClient';
 import toast from 'react-hot-toast';
 import './Signup.css';
 
-const Signup = ({ onBack, onLoginClick, onSignupSuccess, role }) => {
+const Signup = ({ onBack, onLoginClick, onSignupOTPNeeded, role }) => {
     const [fullName, setFullName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -34,23 +34,10 @@ const Signup = ({ onBack, onLoginClick, onSignupSuccess, role }) => {
 
             if (error) throw error;
 
-            // Manually save session specifically for WebView manual restoration
-            if (data?.session) {
-                const sessionBundle = {
-                    access_token: data.session.access_token,
-                    refresh_token: data.session.refresh_token
-                };
-                localStorage.setItem('xpool_manual_token', JSON.stringify(sessionBundle));
-            }
-
-            // Profile is now created automatically by the database trigger
-            // (on_auth_user_created)
-
-            toast.success('Signup successful!');
-
-            // Execute the success callback if provided
-            if (onSignupSuccess) {
-                await onSignupSuccess();
+            // Route to email OTP verification screen before proceeding
+            toast.success('Account created! Please check your email for the verification code.');
+            if (onSignupOTPNeeded) {
+                onSignupOTPNeeded(email);
             } else {
                 onLoginClick();
             }
