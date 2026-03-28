@@ -342,11 +342,11 @@ function App() {
             // Validate if the saved screen is valid for this user
             const validScreens = new Set([
               'splash', 'onboarding', 'roleSelection', 'authSelection', 'login',
-              'signup', 'phoneLogin', 'otpVerification', 'emailOTPVerification', 'rideOtpVerification', 'welcome', 'poolingSelection',
+              'signup', 'phoneLogin', 'otpVerification', 'emailOTPVerification', 'welcome', 'poolingSelection',
               'driverDocuments', 'verificationInProgress', 'driverWelcome', 'driverHome',
-              'driverWallet', 'publishTrip', 'myTrips', 'bookingRequests', 'activeRide',
-              'passengerHome', 'searchTrips', 'tripBooking', 'passengerProfile',
-              'paymentDetails', 'myBookings', 'rideHistory', 'passengerRideDetails', 'profile'
+              'driverWallet', 'publishTrip', 'myTrips', 'bookingRequests',
+              'passengerHome', 'passengerProfile',
+              'paymentDetails', 'myBookings', 'rideHistory', 'profile'
             ]);
 
             // Check if saved screen is valid
@@ -727,7 +727,8 @@ function App() {
             }
           } else {
             // Passenger logic
-            if (backendState.screen && !['login', 'signup', 'authSelection', 'linkGoogle'].includes(backendState.screen)) {
+            const safePassengerScreens = ['passengerHome', 'passengerProfile', 'paymentDetails', 'myBookings', 'rideHistory', 'profile'];
+            if (backendState.screen && safePassengerScreens.includes(backendState.screen)) {
               console.log('Navigating to saved screen:', backendState.screen);
               setCurrentScreen(backendState.screen);
             } else {
