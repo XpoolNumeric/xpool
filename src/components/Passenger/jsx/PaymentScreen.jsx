@@ -114,19 +114,25 @@ const PaymentScreen = ({ paymentData, onBack, onPaymentComplete }) => {
 
     const verifyPayment = async (orderId) => {
         setVerifying(true);
+        setPaymentStatus('processing');
+        
         try {
             // Poll DB until webhook is received
+            console.log('Polling payment status for ID:', paymentData.payment_id);
             const isPaid = await paymentService.pollPaymentStatus(paymentData.payment_id);
 
             if (isPaid) {
+                console.log('Payment verified as PAID');
                 handleSuccess();
             } else {
+                console.log('Payment polling timed out or failed');
                 setPaymentStatus('failed');
-                setErrorMsg('Payment verification taking too long. Check your trips later to confirm.');
+                setErrorMsg('Payment verification is taking longer than expected. Please check your "My Bookings" page in a minute to confirm.');
             }
         } catch (error) {
+            console.error('Verification error:', error);
             setPaymentStatus('failed');
-            setErrorMsg('Could not verify payment status automatically.');
+            setErrorMsg('Could not verify payment status automatically. If money was debited, it will reflect in your bookings shortly.');
         } finally {
             setVerifying(false);
         }
