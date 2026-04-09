@@ -73,6 +73,8 @@ class PaymentService {
 
             checkStatus();
         });
+    }
+
     /**
      * Force verify a Cashfree payment status via Edge Function
      */
