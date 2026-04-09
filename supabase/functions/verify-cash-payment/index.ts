@@ -54,20 +54,20 @@ serve(async (req) => {
                 .from('booking_requests')
                 .select(`
                     id, passenger_id, seats_requested, trip_id, driver_id,
-                    trips:trip_id(price_per_seat, user_id)
+                    trips(price_per_seat, user_id)
                 `)
                 .eq('id', booking_id)
                 .single()
             
-            if (bookingErr || !booking) throw new Error('Booking not found while creating payment record')
+            if (bookingErr || !booking) throw new Error('Booking not found while creating payment record: ' + (bookingErr?.message || 'Empty result'))
             
             // Verify driver ownership
-            if (booking.driver_id !== user.id && (Array.isArray(booking.trips) ? booking.trips[0] : booking.trips)?.user_id !== user.id) {
+            const tripData = Array.isArray(booking.trips) ? booking.trips[0] : booking.trips;
+            if (booking.driver_id !== user.id && tripData?.user_id !== user.id) {
                 throw new Error('Unauthorized to verify this payment')
             }
 
-            const tripData = Array.isArray(booking.trips) ? booking.trips[0] : booking.trips;
-            const totalAmount = Number(tripData.price_per_seat || 0) * Number(booking.seats_requested || 1);
+            const totalAmount = Number(tripData?.price_per_seat || 0) * Number(booking.seats_requested || 1);
             const COMMISSION_RATE = 0.15;
             const commissionAmount = Math.round(totalAmount * COMMISSION_RATE * 100) / 100;
             const driverAmount = Math.round((totalAmount - commissionAmount) * 100) / 100;
@@ -90,7 +90,13 @@ serve(async (req) => {
             
             if (insertErr || !newPayment) throw new Error('Failed to create cash payment record: ' + insertErr?.message)
             
-            paymentId = newPayment.id; // Just created and marked paid
+            paymentId = newPayment.id;
+
+            // ✅ Update booking status server-side
+            await supabaseAdmin
+                .from('booking_requests')
+                .update({ status: 'completed', drop_status: 'completed', dropped_at: new Date().toISOString() })
+                .eq('id', booking.id);
 
             // --> DEDUCT COMMISSION <--
             try {
@@ -107,7 +113,6 @@ serve(async (req) => {
                     p_description: 'Commission Deducted for Cash Trip (Verify Flow)'
                 });
                 if (rpcErr) console.error('Wallet deduction RPC error:', rpcErr);
-                else console.log('Commission deducted successfully:', rpcData);
             } catch (err) {
                 console.error('Wallet deduction threw error:', err);
             }
@@ -129,6 +134,13 @@ serve(async (req) => {
             if (updateError) throw updateError;
             paymentId = maybePayment.id;
 
+            // ✅ Update booking status server-side
+            await supabaseAdmin
+                .from('booking_requests')
+                .update({ status: 'completed', drop_status: 'completed', dropped_at: new Date().toISOString() })
+                .eq('trip_id', maybePayment.trip_id)
+                .eq('passenger_id', maybePayment.passenger_id);
+
             // --> DEDUCT COMMISSION <--
             const comAmount = Number(maybePayment.commission_amount || 0);
             if (comAmount > 0) {
@@ -146,17 +158,16 @@ serve(async (req) => {
                         p_description: 'Commission Deducted for Cash Trip (Verify Flow)'
                     });
                     if (rpcErr) console.error('Wallet deduction RPC error:', rpcErr);
-                    else console.log('Commission deducted successfully:', rpcData);
                 } catch (err) {
                     console.error('Wallet deduction threw error:', err);
                 }
             }
         }
 
-        // 3. (Optional) Broadcast to passenger that payment is received
-        // Try getting passenger_id and trip_id again just in case we created it.
-        const activePassengerId = maybePayment?.passenger_id;
-        const activeTripId = maybePayment?.trip_id;
+        // 3. Broadcast to passenger that payment is received
+        const activePassengerId = maybePayment?.passenger_id || (booking_id ? (await supabaseAdmin.from('booking_requests').select('passenger_id').eq('id', booking_id).single()).data?.passenger_id : null);
+        const activeTripId = maybePayment?.trip_id || (booking_id ? (await supabaseAdmin.from('booking_requests').select('trip_id').eq('id', booking_id).single()).data?.trip_id : null);
+        
         if (activePassengerId) {
             try {
                 const channel = supabaseAdmin.channel(`passenger_${activePassengerId}`)
