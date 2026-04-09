@@ -73,6 +73,25 @@ class PaymentService {
 
             checkStatus();
         });
+    /**
+     * Force verify a Cashfree payment status via Edge Function
+     */
+    async verifyCashfreePayment(orderId) {
+        try {
+            const { data, error } = await supabase.functions.invoke('verify-cashfree-payment', {
+                body: { order_id: orderId }
+            });
+
+            if (error) {
+                console.error('Verify function error:', error);
+                throw new Error(error.message || 'Verification failed');
+            }
+
+            return data; // returns { success, status, is_paid }
+        } catch (error) {
+            console.error('Payment verification error:', error);
+            throw error;
+        }
     }
 }
 

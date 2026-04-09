@@ -483,15 +483,17 @@ const MyBookings = ({ onBack, onViewDetails, onPaymentRequired }) => {
                                             {booking.status === 'approved' && booking.trips?.status !== 'completed' && (
                                                 <div className="active-trip-pay-section" style={{ marginTop: '0', paddingTop: '1rem', borderTop: '1px solid #e2e8f0' }}>
                                                     <button
-                                                        className="pay-now-btn"
+                                                        className={`pay-now-btn ${booking.ride_payment?.payment_status === 'paid' ? 'paid' : ''}`}
                                                         onClick={(e) => {
                                                             e.stopPropagation();
                                                             const rp = booking.ride_payment;
+                                                            if (rp?.payment_status === 'paid') return; // Already paid
+                                                            
                                                             if (onPaymentRequired) {
                                                                 onPaymentRequired({
                                                                     payment_id: rp?.id,
                                                                     booking_id: booking.id,
-                                                                    amount: booking.computed_total, // ✅ clean pre-computed value
+                                                                    amount: booking.computed_total,
                                                                     cashfree_order_id: rp?.cashfree_order_id
                                                                 });
                                                             } else if (onViewDetails) {
@@ -499,8 +501,11 @@ const MyBookings = ({ onBack, onViewDetails, onPaymentRequired }) => {
                                                             }
                                                         }}
                                                     >
-                                                        {/* ✅ FIX: single reliable source, no IIFE fallback needed */}
-                                                        Pay ₹{booking.computed_total}
+                                                        {booking.ride_payment?.payment_status === 'paid' ? (
+                                                            <>✔ PAID</>
+                                                        ) : (
+                                                            <>Pay ₹{booking.computed_total}</>
+                                                        )}
                                                     </button>
                                                 </div>
                                             )}

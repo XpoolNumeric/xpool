@@ -133,11 +133,41 @@
     padding-top: 48px;
 }
 
+.payment-success-badge {
+    background-color: #d1fae5;
+    color: #065f46;
+    padding: 12px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    animation: fadeIn 0.5s ease-out;
+}
+
+.pay-btn.success {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+    cursor: default;
+    transform: scale(1.02);
+    box-shadow: 0 4px 20px rgba(16, 185, 129, 0.4);
+}
+
+.pay-btn.success span {
+    color: white;
+}
+
 .success-icon-wrapper {
     background-color: #d1fae5;
     border-radius: 50%;
     padding: 24px;
     margin-bottom: 24px;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 .success-icon {

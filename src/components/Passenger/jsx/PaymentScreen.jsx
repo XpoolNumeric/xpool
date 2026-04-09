@@ -43,6 +43,14 @@ const PaymentScreen = ({ paymentData, onBack, onPaymentComplete }) => {
         document.body.appendChild(script);
     }, []);
 
+    // Auto-verify if mounted via redirect (order_id will be present in paymentData)
+    useEffect(() => {
+        if (paymentData?.order_id && sdkReady) {
+            console.log('Detected order_id on mount, starting auto-verification...');
+            verifyPayment(paymentData.order_id);
+        }
+    }, [sdkReady, paymentData?.order_id]);
+
     const handlePayment = async () => {
         if (!paymentData?.payment_id && !paymentData?.booking_id) {
             toast.error('Invalid payment data provided');
@@ -60,6 +68,9 @@ const PaymentScreen = ({ paymentData, onBack, onPaymentComplete }) => {
             if (orderData.payment_id) {
                 paymentData.payment_id = orderData.payment_id;
             }
+            if (orderData.order_id) {
+                paymentData.order_id = orderData.order_id;
+            }
 
             if (orderData.stub_mode) {
                 // Handle stub mode (No API keys provided)
@@ -76,7 +87,7 @@ const PaymentScreen = ({ paymentData, onBack, onPaymentComplete }) => {
             }
 
             const cashfree = window.Cashfree({
-                mode: 'production' // Updated for live
+                mode: 'production' // Consistent with live deployment
             });
 
             // 3. Open Checkout
@@ -96,6 +107,7 @@ const PaymentScreen = ({ paymentData, onBack, onPaymentComplete }) => {
                 } else if (result.redirect) {
                     // Redirection based payment
                     console.log("Payment will be redirected");
+                    // URL interceptor in App.jsx will handle the return
                 } else if (result.paymentDetails) {
                     // Process payment success directly
                     console.log("Payment completed details", result.paymentDetails);
@@ -113,26 +125,41 @@ const PaymentScreen = ({ paymentData, onBack, onPaymentComplete }) => {
     };
 
     const verifyPayment = async (orderId) => {
+        if (verifying) return;
+        
         setVerifying(true);
         setPaymentStatus('processing');
+        setErrorMsg('');
         
         try {
-            // Poll DB until webhook is received
-            console.log('Polling payment status for ID:', paymentData.payment_id);
-            const isPaid = await paymentService.pollPaymentStatus(paymentData.payment_id);
+            console.log('Starting verification for Order:', orderId);
+            
+            // 1. First, try forcing a status check via the new Edge Function
+            // This is faster and more reliable than waiting for a webhook.
+            const verifyResult = await paymentService.verifyCashfreePayment(orderId);
+            
+            if (verifyResult.success && verifyResult.is_paid) {
+                console.log('Force verification successful: PAID');
+                handleSuccess();
+                return;
+            }
+
+            // 2. Fallback: If not PAID yet, poll DB for a few seconds (webhook might still be coming)
+            console.log('Force verification not paid yet, falling back to DB polling...');
+            const isPaid = await paymentService.pollPaymentStatus(paymentData.payment_id, 6, 2000); // 12 seconds poll
 
             if (isPaid) {
-                console.log('Payment verified as PAID');
+                console.log('Payment verified via DB polling');
                 handleSuccess();
             } else {
-                console.log('Payment polling timed out or failed');
+                console.warn('Payment verification timeout');
                 setPaymentStatus('failed');
-                setErrorMsg('Payment verification is taking longer than expected. Please check your "My Bookings" page in a minute to confirm.');
+                setErrorMsg('We are still waiting for payment confirmation. If the amount was debited, please check your "My Bookings" page in a minute.');
             }
         } catch (error) {
-            console.error('Verification error:', error);
+            console.error('Verification failure:', error);
             setPaymentStatus('failed');
-            setErrorMsg('Could not verify payment status automatically. If money was debited, it will reflect in your bookings shortly.');
+            setErrorMsg('Verification error: ' + (error.message || 'Please contact support if money was debited.'));
         } finally {
             setVerifying(false);
         }
@@ -191,76 +218,81 @@ const PaymentScreen = ({ paymentData, onBack, onPaymentComplete }) => {
             </header>
 
             <div className="payment-content">
-                {paymentStatus === 'success' ? (
-                    <div className="payment-success">
-                        <div className="success-icon-wrapper">
-                            <CheckCircle size={64} className="success-icon animate-pulse" />
-                        </div>
-                        <h2>Payment Successful!</h2>
-                        <p>₹{paymentData.amount} paid successfully</p>
-                        <p className="redirect-note">Redirecting you shortly...</p>
+                <div className="invoice-card">
+                    <div className="invoice-header">
+                        <ShieldCheck size={24} color="#10b981" />
+                        <span>Secure Checkout</span>
                     </div>
-                ) : (
-                    <>
-                        <div className="invoice-card">
-                            <div className="invoice-header">
-                                <ShieldCheck size={24} color="#10b981" />
-                                <span>Secure Checkout</span>
-                            </div>
 
-                            <div className="invoice-details">
-                                <div className="detail-row">
-                                    <span>Ride Fare</span>
-                                    <span>₹{paymentData.amount}</span>
-                                </div>
-                                <div className="divider"></div>
-                                <div className="detail-row total">
-                                    <span>Total Amount to Pay</span>
-                                    <span>₹{paymentData.amount}</span>
-                                </div>
-                            </div>
-
-                            <p className="secure-note">
-                                Payments are secured by Cashfree. You can use UPI, Credit/Debit cards, or Netbanking.
-                            </p>
+                    <div className="invoice-details">
+                        <div className="detail-row">
+                            <span>Ride Fare</span>
+                            <span>₹{paymentData.amount}</span>
                         </div>
+                        <div className="divider"></div>
+                        <div className="detail-row total">
+                            <span>Total Amount</span>
+                            <span>₹{paymentData.amount}</span>
+                        </div>
+                    </div>
 
-                        {paymentStatus === 'failed' && (
-                            <div className="payment-error">
-                                <AlertCircle size={20} />
-                                <span>{errorMsg}</span>
-                            </div>
-                        )}
+                    {paymentStatus === 'success' && (
+                        <div className="payment-success-badge mt-4">
+                            <CheckCircle size={20} />
+                            <span>Verified & Paid</span>
+                        </div>
+                    )}
 
-                        <button
-                            className="pay-btn"
-                            onClick={handlePayment}
-                            disabled={!sdkReady || loading || paymentStatus === 'processing' || verifying}
-                        >
-                            {!sdkReady ? (
-                                <>
-                                    <Loader2 size={20} className="spinning-loader" />
-                                    <span>Loading Gateway...</span>
-                                </>
-                            ) : loading || paymentStatus === 'processing' || verifying ? (
-                                <>
-                                    <Loader2 size={20} className="spinning-loader" />
-                                    <span>Processing...</span>
-                                </>
-                            ) : (
-                                <>
-                                    <CreditCard size={20} />
-                                    <span>Pay ₹{paymentData.amount} via Cashfree</span>
-                                </>
-                            )}
-                        </button>
+                    <p className="secure-note">
+                        Payments are secured by Cashfree. Verified and updated in real-time.
+                    </p>
+                </div>
 
-                        {(paymentStatus === 'processing' || verifying) && (
-                            <p className="processing-note text-center mt-4 text-gray-500">
-                                Please do not close this window or press back.
-                            </p>
-                        )}
-                    </>
+                {paymentStatus === 'failed' && (
+                    <div className="payment-error">
+                        <AlertCircle size={20} />
+                        <span>{errorMsg}</span>
+                    </div>
+                )}
+
+                <button
+                    className={`pay-btn ${paymentStatus === 'success' ? 'success' : ''}`}
+                    onClick={paymentStatus === 'success' ? null : handlePayment}
+                    disabled={(!sdkReady || loading || paymentStatus === 'processing' || verifying) && paymentStatus !== 'success'}
+                >
+                    {paymentStatus === 'success' ? (
+                        <>
+                            <CheckCircle size={20} />
+                            <span>Payment Successful!</span>
+                        </>
+                    ) : !sdkReady ? (
+                        <>
+                            <Loader2 size={20} className="spinning-loader" />
+                            <span>Loading Gateway...</span>
+                        </>
+                    ) : loading || paymentStatus === 'processing' || verifying ? (
+                        <>
+                            <Loader2 size={20} className="spinning-loader" />
+                            <span>Verifying Status...</span>
+                        </>
+                    ) : (
+                        <>
+                            <CreditCard size={20} />
+                            <span>Pay ₹{paymentData.amount} now</span>
+                        </>
+                    )}
+                </button>
+
+                {paymentStatus === 'success' && (
+                    <p className="redirect-note text-center mt-4">
+                        Redirecting to your booking details...
+                    </p>
+                )}
+
+                {(paymentStatus === 'processing' || verifying) && (
+                    <p className="processing-note text-center mt-4 text-gray-500">
+                        Checking with Cashfree... please wait.
+                    </p>
                 )}
             </div>
         </div>

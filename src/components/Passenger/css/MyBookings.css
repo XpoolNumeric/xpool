@@ -553,6 +553,13 @@
         background-color: #000;
     }
 
+    .pay-now-btn.paid {
+        background-color: #22c55e !important;
+        color: white !important;
+        cursor: default;
+        box-shadow: 0 4px 12px rgba(34, 197, 94, 0.2);
+    }
+
     /* Mini Map styles */
     .mini-map-container {
         height: 150px;

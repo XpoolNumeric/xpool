@@ -323,7 +323,8 @@ function App() {
               setPaymentData({
                 payment_id: paymentRecord.id,
                 booking_id: paymentRecord.booking_id,
-                amount: paymentRecord.total_amount
+                amount: paymentRecord.total_amount,
+                order_id: orderIdFromUrl // Pass this for auto-verification
               });
               setCurrentScreen('paymentScreen');
               
