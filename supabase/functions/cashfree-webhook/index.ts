@@ -126,7 +126,7 @@ serve(async (req) => {
         }
 
         // Update payment status
-        await supabaseAdmin
+        const { error: updateErr } = await supabaseAdmin
             .from('ride_payments')
             .update({
                 payment_status: 'paid',
@@ -134,15 +134,40 @@ serve(async (req) => {
                 paid_at: new Date().toISOString()
             })
             .eq('id', payment.id)
+        
+        if (updateErr) {
+            console.error('Error updating ride_payments:', updateErr)
+        }
+
+        // --- NEW: Update booking status to completed ---
+        // This ensures the ride is marked complete even if the user closes the app
+        if (payment.booking_id) {
+            console.log('Marking booking completed:', payment.booking_id)
+            const { error: bookingErr } = await supabaseAdmin
+                .from('booking_requests')
+                .update({ 
+                    status: 'completed', 
+                    drop_status: 'completed',
+                    dropped_at: new Date().toISOString()
+                })
+                .eq('id', payment.booking_id)
+            
+            if (bookingErr) {
+                console.error('Error updating booking status:', bookingErr)
+            }
+        }
 
         // Credit driver wallet
         try {
-            await supabaseAdmin.rpc('add_to_wallet', {
+            console.log('Crediting driver wallet:', payment.driver_id, 'Amount:', payment.driver_amount)
+            const { error: rpcErr } = await supabaseAdmin.rpc('add_to_wallet', {
                 p_driver_user_id: payment.driver_id,
                 p_amount: payment.driver_amount,
                 p_ride_id: payment.trip_id,
                 p_description: 'Online payment earning (after 15% commission)'
             })
+
+            if (rpcErr) throw rpcErr;
 
             // Notify driver
             await supabaseAdmin.from('notifications').insert({
