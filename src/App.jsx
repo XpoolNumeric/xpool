@@ -297,8 +297,44 @@ function App() {
       }
     }, 3000); // 3 seconds max (was 5s, reduced for faster recovery)
 
-    const initializeSession = async () => {
+        const initializeSession = async () => {
       try {
+        // --- NEW: URL Interception for Payment Redirects ---
+        const urlParams = new URLSearchParams(window.location.search);
+        const orderIdFromUrl = urlParams.get('order_id');
+        const isPaymentPath = window.location.pathname.includes('/payment-status');
+
+        if (orderIdFromUrl || isPaymentPath) {
+          console.log('[App] Detected payment redirect, order_id:', orderIdFromUrl);
+          
+          // Clear the URL params without refreshing to keep it clean
+          window.history.replaceState({}, document.title, window.location.pathname);
+
+          if (orderIdFromUrl) {
+            // Fetch payment data to restore context
+            const { data: paymentRecord } = await supabase
+              .from('ride_payments')
+              .select('id, total_amount, booking_id, payment_status')
+              .eq('cashfree_order_id', orderIdFromUrl)
+              .single();
+
+            if (paymentRecord) {
+              console.log('[App] Found payment record for redirect:', paymentRecord);
+              setPaymentData({
+                payment_id: paymentRecord.id,
+                booking_id: paymentRecord.booking_id,
+                amount: paymentRecord.total_amount
+              });
+              setCurrentScreen('paymentScreen');
+              
+              // If already paid, the PaymentScreen will handle it
+              setIsSessionInitializing(false);
+              setIsInitialLoad(false);
+              return; // Stop further initialization routing
+            }
+          }
+        }
+
         const { data: { session: existingSession } } = await supabase.auth.getSession();
         console.log('[App] Session loaded:', existingSession ? 'Yes' : 'No');
         setSession(existingSession);
