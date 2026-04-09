@@ -6,7 +6,7 @@ import './AuthSelection.css';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-const PhoneLogin = ({ onBack, onProceed, isSignupFlow = false }) => {
+const PhoneLogin = ({ onBack, onProceed, isSignupFlow = false, isAddMode = false }) => {
     const [phoneNumber, setPhoneNumber] = useState('');
     const [loading, setLoading] = useState(false);
 
@@ -57,10 +57,20 @@ const PhoneLogin = ({ onBack, onProceed, isSignupFlow = false }) => {
 
         try {
             setLoading(true);
-            const { error } = await supabase.auth.signInWithOtp({
-                phone: formatted,
-            });
-            if (error) throw error;
+
+            if (isAddMode) {
+                // User is already logged in via Email, just add phone
+                const { error } = await supabase.auth.updateUser({
+                    phone: formatted
+                });
+                if (error) throw error;
+            } else {
+                // Normal new sign in / setup
+                const { error } = await supabase.auth.signInWithOtp({
+                    phone: formatted,
+                });
+                if (error) throw error;
+            }
 
             toast.success('OTP sent to your mobile number!');
             onProceed(formatted);
@@ -86,9 +96,11 @@ const PhoneLogin = ({ onBack, onProceed, isSignupFlow = false }) => {
 
             <div className="login-form-container" style={{ paddingTop: '40px' }}>
                 <h2 className="form-title" style={{ textAlign: 'left' }}>
-                    {isSignupFlow
-                        ? <>Verify your<br />Mobile Number</>
-                        : <>Enter Your Phone Number<br />To Continue</>}
+                    {isAddMode 
+                        ? <>Add Mobile Number<br />To Continue</>
+                        : (isSignupFlow
+                            ? <>Verify your<br />Mobile Number</>
+                            : <>Enter Your Phone Number<br />To Continue</>)}
                 </h2>
                 {isSignupFlow && (
                     <p style={{ color: '#888', fontSize: '14px', marginTop: '8px' }}>

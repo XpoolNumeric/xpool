@@ -12,11 +12,13 @@ let mapsScriptPromise = null;
 
 /**
  * Load Google Maps JavaScript API script dynamically
- * @param {string} apiKey - Google Maps API key
+ * (Helper now waits for the centrally-loaded API from APIProvider in App.jsx)
+ * @param {string} apiKey - Google Maps API key (not used in refactored version)
  * @returns {Promise<void>}
  */
 export const loadGoogleMapsScript = (apiKey) => {
-    if (mapsScriptLoaded) {
+    if (window.google && window.google.maps) {
+        mapsScriptLoaded = true;
         return Promise.resolve();
     }
 
@@ -24,26 +26,26 @@ export const loadGoogleMapsScript = (apiKey) => {
         return mapsScriptPromise;
     }
 
-    mapsScriptPromise = new Promise((resolve, reject) => {
-        const script = document.createElement('script');
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}&libraries=places,geometry`;
-        script.async = true;
-        script.defer = true;
-
-        script.onload = () => {
-            mapsScriptLoaded = true;
-            resolve();
-        };
-
-        script.onerror = () => {
-            reject(new Error('Failed to load Google Maps script'));
-        };
-
-        document.head.appendChild(script);
+    mapsScriptPromise = new Promise((resolve) => {
+        // Poll for window.google to be available (max 10 seconds)
+        let attempts = 0;
+        const interval = setInterval(() => {
+            attempts++;
+            if (window.google && window.google.maps) {
+                clearInterval(interval);
+                mapsScriptLoaded = true;
+                resolve();
+            } else if (attempts > 50) { // 10 seconds total (200ms * 50)
+                clearInterval(interval);
+                console.warn('Google Maps API not found after 10 seconds.');
+                resolve(); // Resolve to let caller fail naturally or check again
+            }
+        }, 200);
     });
 
     return mapsScriptPromise;
 };
+
 
 /**
  * Initialize a Google Map instance
@@ -87,14 +89,14 @@ export const createRoute = async (map, origin, destination, waypoints = []) => {
         suppressMarkers: false,
         polylineOptions: {
             strokeColor: '#FFD700',
-            strokeWeight: 5,
+            strokeWeight: 6,
         },
     });
 
     const request = {
         origin,
         destination,
-        waypoints: waypoints.map(wp => ({ location: wp, stopover: true })),
+        waypoints: (waypoints || []).map(wp => ({ location: wp, stopover: true })),
         travelMode: window.google.maps.TravelMode.DRIVING,
         optimizeWaypoints: true,
     };
@@ -121,6 +123,8 @@ export const createRoute = async (map, origin, destination, waypoints = []) => {
         });
     });
 };
+
+
 
 /**
  * Start navigation with turn-by-turn directions
@@ -160,6 +164,8 @@ export const startNavigation = async (origin, destination) => {
         });
     });
 };
+
+
 
 /**
  * Get user's current location

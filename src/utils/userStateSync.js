@@ -116,9 +116,12 @@ export const fetchStateFromBackend = async (userId) => {
                 // Check for Approved or Pending status across all records
                 const hasApproved = drivers.some(d => getStatus(d) === 'approved');
                 const hasPending = drivers.some(d => getStatus(d) === 'pending');
+                const hasSuspended = drivers.some(d => getStatus(d) === 'suspended');
 
                 if (hasApproved) {
                     result.driverStatus = 'approved';
+                } else if (hasSuspended) {
+                    result.driverStatus = 'suspended';
                 } else if (hasPending) {
                     result.driverStatus = 'pending';
                 } else {

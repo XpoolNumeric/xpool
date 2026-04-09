@@ -3,7 +3,7 @@ import { supabase } from '../../supabaseClient';
 import toast from 'react-hot-toast';
 import './EmailOTPVerification.css';
 
-const EmailOTPVerification = ({ email, onVerified, onBack }) => {
+const EmailOTPVerification = ({ email, onVerified, onBack, isAddMode = false }) => {
     const [otp, setOtp] = useState(['', '', '', '', '', '']);
     const [loading, setLoading] = useState(false);
     const [resending, setResending] = useState(false);
@@ -76,7 +76,7 @@ const EmailOTPVerification = ({ email, onVerified, onBack }) => {
             const { data, error } = await supabase.auth.verifyOtp({
                 email,
                 token,
-                type: 'email',
+                type: isAddMode ? 'email_change' : 'signup',
             });
             if (error) throw error;
 
@@ -106,7 +106,7 @@ const EmailOTPVerification = ({ email, onVerified, onBack }) => {
             setResending(true);
             const { error } = await supabase.auth.resend({
                 email,
-                type: 'signup',
+                type: isAddMode ? 'email_change' : 'signup',
             });
             if (error) throw error;
             toast.success('Verification code resent! Check your inbox.');

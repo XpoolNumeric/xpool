@@ -51,6 +51,65 @@ serve(async (req) => {
             Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
         )
 
+        // --- WALLET RECHARGE FLOW ---
+        if (orderId && orderId.startsWith('rechg_')) {
+            const { data: recharge } = await supabaseAdmin
+                .from('wallet_recharges')
+                .select('*')
+                .eq('cashfree_order_id', orderId)
+                .single()
+
+            if (!recharge) {
+                return new Response('Recharge not found', { status: 404 })
+            }
+
+            if (recharge.status === 'paid') {
+                return new Response('Already processed', { status: 200 })
+            }
+
+            // Update recharge status
+            await supabaseAdmin
+                .from('wallet_recharges')
+                .update({
+                    status: 'paid',
+                    cashfree_payment_id: payload.data.payment.cf_payment_id?.toString(),
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', recharge.id)
+
+            // Find driver's user_id to invoke RPC
+            const { data: driver } = await supabaseAdmin
+                .from('drivers')
+                .select('user_id')
+                .eq('id', recharge.driver_id)
+                .single()
+
+            if (driver) {
+                try {
+                    await supabaseAdmin.rpc('add_to_wallet', {
+                        p_driver_user_id: driver.user_id,
+                        p_amount: recharge.amount,
+                        p_ride_id: recharge.id,
+                        p_description: 'Wallet Top-up Complete'
+                    })
+
+                    // Notify driver
+                    await supabaseAdmin.from('notifications').insert({
+                        user_id: driver.user_id,
+                        type: 'wallet_recharge',
+                        title: 'Funds Added!',
+                        message: `Successfully added ₹${recharge.amount} to your wallet.`,
+                        data: { recharge_id: recharge.id }
+                    })
+                } catch (walletErr) {
+                    console.error('Wallet recharge error:', walletErr)
+                }
+            }
+
+            return new Response('Success', { status: 200 })
+        }
+
+        // --- RIDE PAYMENTS FLOW ---
         // Get payment
         const { data: payment } = await supabaseAdmin
             .from('ride_payments')

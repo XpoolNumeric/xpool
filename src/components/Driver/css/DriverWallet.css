@@ -236,6 +236,76 @@
     color: #dc2626;
 }
 
+/* Invoice Breakdown styling */
+.transaction-item-wrapper {
+    background: #ffffff;
+    border-radius: 1.25rem;
+    padding: 1.25rem;
+    border: 1px solid #f1f5f9;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.02);
+    margin-bottom: 0.5rem;
+    display: flex;
+    flex-direction: column;
+}
+
+.transaction-item-wrapper .transaction-item {
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.tx-invoice-breakdown {
+    margin-top: 1.25rem;
+    padding-top: 1rem;
+    border-top: 1px dashed #e2e8f0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+.invoice-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    font-weight: 800;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.25rem;
+}
+
+.invoice-trip-id {
+    background: #f1f5f9;
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: #64748b;
+}
+
+.invoice-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.9rem;
+    color: #334155;
+    font-weight: 600;
+}
+
+.invoice-row.commission {
+    color: #ef4444;
+}
+
+.invoice-divider {
+    height: 1px;
+    background: #f1f5f9;
+    margin: 0.25rem 0;
+}
+
+.invoice-row.net {
+    font-size: 1rem;
+    font-weight: 800;
+    color: #059669;
+}
+
+
 /* Analytics Chart */
 .analytics-view {
     padding: 0.5rem;

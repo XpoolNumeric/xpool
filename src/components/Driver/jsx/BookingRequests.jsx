@@ -12,6 +12,7 @@ const BookingRequests = ({ onBack }) => {
     const [filter, setFilter] = useState('pending');
     const [showChat, setShowChat] = useState(false);
     const [activeChatTripId, setActiveChatTripId] = useState(null);
+    const [activeChatBookingId, setActiveChatBookingId] = useState(null);
     const [currentUserId, setCurrentUserId] = useState(null);
 
     useEffect(() => {
@@ -335,6 +336,7 @@ const BookingRequests = ({ onBack }) => {
                                     <div className="passenger-contact-actions">
                                         <button className="icon-btn-small chat" onClick={() => {
                                             setActiveChatTripId(request.trip_id);
+                                            setActiveChatBookingId(request.id);
                                             setShowChat(true);
                                         }}>
                                             <MessageCircle size={18} />
@@ -432,6 +434,7 @@ const BookingRequests = ({ onBack }) => {
                 <div className="chat-overlay-container">
                     <Chat
                         tripId={activeChatTripId}
+                        bookingId={activeChatBookingId}
                         currentUserId={currentUserId}
                         onBack={() => setShowChat(false)}
                     />

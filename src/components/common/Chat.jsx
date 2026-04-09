@@ -4,15 +4,16 @@ import { supabase } from '../../supabaseClient';
 import toast from 'react-hot-toast';
 import './Chat.css';
 
-const Chat = ({ tripId, onBack, currentUserId }) => {
+const Chat = ({ tripId, bookingId, onBack, currentUserId }) => {
     const [messages, setMessages] = useState([]);
     const [newMessage, setNewMessage] = useState('');
     const [loading, setLoading] = useState(true);
-    const [recipient, setRecipient] = useState(null);
+    const [driverId, setDriverId] = useState(null);
+    const [senderProfiles, setSenderProfiles] = useState({});
     const messagesEndRef = useRef(null);
 
     useEffect(() => {
-        fetchMessages();
+        fetchTripAndMessages();
         const subscribeToMessages = () => {
             const channel = supabase
                 .channel(`trip_chat_${tripId}`)
@@ -22,7 +23,7 @@ const Chat = ({ tripId, onBack, currentUserId }) => {
                         event: 'INSERT',
                         schema: 'public',
                         table: 'messages',
-                        filter: `trip_id=eq.${tripId}`
+                        filter: bookingId ? `booking_id=eq.${bookingId}` : `trip_id=eq.${tripId}`
                     },
                     (payload) => {
                         setMessages((prev) => [...prev, payload.new]);
@@ -38,7 +39,7 @@ const Chat = ({ tripId, onBack, currentUserId }) => {
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [tripId]);
+    }, [tripId, bookingId, driverId, senderProfiles]);
 
     useEffect(() => {
         scrollToBottom();
@@ -48,23 +49,80 @@ const Chat = ({ tripId, onBack, currentUserId }) => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     };
 
-    const fetchMessages = async () => {
+    const fetchTripAndMessages = async () => {
         try {
-            const { data, error } = await supabase
+            // First fetch driver ID for this trip
+            const { data: tripData } = await supabase
+                .from('trips')
+                .select('user_id')
+                .eq('id', tripId)
+                .single();
+                
+            if (tripData) {
+                setDriverId(tripData.user_id);
+            }
+
+            // Fetch messages
+            let query = supabase
                 .from('messages')
                 .select('*')
-                .eq('trip_id', tripId)
                 .order('created_at', { ascending: true });
+                
+            if (bookingId) {
+                query = query.eq('booking_id', bookingId);
+            } else if (tripId) {
+                query = query.eq('trip_id', tripId);
+            }
+
+            const { data: msgs, error } = await query;
 
             if (error) throw error;
-            setMessages(data || []);
+            
+            // Fetch profiles for sender names
+            if (msgs && msgs.length > 0) {
+                const uniqueSenderIds = [...new Set(msgs.map(m => m.sender_id))];
+                await fetchProfiles(uniqueSenderIds);
+            }
+            
+            setMessages(msgs || []);
         } catch (error) {
-            console.error('Error fetching messages:', error);
+            console.error('Error fetching chat data:', error);
             toast.error('Failed to load messages');
         } finally {
             setLoading(false);
         }
     };
+
+    const fetchProfiles = async (userIds) => {
+        if (!userIds || userIds.length === 0) return;
+        
+        try {
+            const { data } = await supabase
+                .from('profiles')
+                .select('id, full_name')
+                .in('id', userIds);
+                
+            if (data) {
+                setSenderProfiles(prev => {
+                    const newProfiles = { ...prev };
+                    data.forEach(p => newProfiles[p.id] = p.full_name);
+                    return newProfiles;
+                });
+            }
+        } catch (err) {
+            console.error('Failed to fetch user profiles for chat:', err);
+        }
+    };
+
+    // When a real-time message arrives, try fetching their profile if missing
+    useEffect(() => {
+        if (messages.length > 0) {
+            const latestMsg = messages[messages.length - 1];
+            if (latestMsg && latestMsg.sender_id && !senderProfiles[latestMsg.sender_id]) {
+                fetchProfiles([latestMsg.sender_id]);
+            }
+        }
+    }, [messages]);
 
     const handleSendMessage = async (e) => {
         e.preventDefault();
@@ -75,6 +133,10 @@ const Chat = ({ tripId, onBack, currentUserId }) => {
             sender_id: currentUserId,
             content: newMessage.trim()
         };
+        
+        if (bookingId) {
+            messageData.booking_id = bookingId;
+        }
 
         try {
             const { error } = await supabase
@@ -112,18 +174,35 @@ const Chat = ({ tripId, onBack, currentUserId }) => {
             <div className="messages-list">
                 {loading ? (
                     <div className="loading-spinner">Loading...</div>
+                ) : messages.length === 0 ? (
+                    <div className="empty-chat">
+                        <p>No messages yet. Send the first message!</p>
+                    </div>
                 ) : (
-                    messages.map((msg) => (
-                        <div
-                            key={msg.id}
-                            className={`message-bubble ${msg.sender_id === currentUserId ? 'sent' : 'received'}`}
-                        >
-                            <div className="message-content">
-                                <p>{msg.content}</p>
-                                <span className="message-time">{formatTime(msg.created_at)}</span>
+                    messages.map((msg) => {
+                        const isMine = msg.sender_id === currentUserId;
+                        const isDriver = msg.sender_id === driverId;
+                        const senderName = isMine ? 'You' : (senderProfiles[msg.sender_id] || 'User');
+                        const role = isDriver ? 'Driver' : 'Passenger';
+                        
+                        return (
+                            <div
+                                key={msg.id}
+                                className={`message-bubble ${isMine ? 'sent' : 'received'}`}
+                            >
+                                {!isMine && (
+                                    <div className="msg-sender-info">
+                                        <span className="msg-name">{senderName}</span>
+                                        <span className={`msg-role ${isDriver ? 'role-driver' : 'role-passenger'}`}>• {role}</span>
+                                    </div>
+                                )}
+                                <div className="message-content">
+                                    <p>{msg.content}</p>
+                                    <span className="message-time">{formatTime(msg.created_at)}</span>
+                                </div>
                             </div>
-                        </div>
-                    ))
+                        );
+                    })
                 )}
                 <div ref={messagesEndRef} />
             </div>

@@ -3,6 +3,7 @@ import { Toaster } from 'react-hot-toast';
 import { supabase } from './supabaseClient';
 import { syncStateToBackend, fetchStateFromBackend } from './utils/userStateSync';
 import { useNativePermissions } from './hooks/useNativePermissions';
+import { App as CapacitorApp } from '@capacitor/app';
 
 import Splash from './components/common/Splash';
 import Onboarding from './components/common/Onboarding';
@@ -15,8 +16,6 @@ import PhoneLogin from './components/common/PhoneLogin';
 
 import OTPVerification from './components/common/OTPVerification';
 import EmailOTPVerification from './components/common/EmailOTPVerification';
-
-import LinkGoogle from './components/common/LinkGoogle';
 
 // Notification & Utilities
 import { subscribeToNotifications, unsubscribeFromNotifications } from './utils/notificationHelper';
@@ -49,6 +48,7 @@ const MyBookings = React.lazy(() => import('./components/Passenger/jsx/MyBooking
 const RideHistory = React.lazy(() => import('./components/Passenger/jsx/RideHistory'));
 const PassengerRideDetails = React.lazy(() => import('./components/Passenger/jsx/PassengerRideDetails'));
 const PaymentScreen = React.lazy(() => import('./components/Passenger/jsx/PaymentScreen'));
+const PassengerWallet = React.lazy(() => import('./components/Passenger/jsx/PassengerWallet'));
 
 import { APIProvider } from '@vis.gl/react-google-maps';
 
@@ -60,7 +60,7 @@ function App() {
   const [currentScreen, setCurrentScreen] = useState(() => {
     const saved = localStorage.getItem('currentScreen');
     if (!saved) return 'splash';
-    const validScreens = new Set(['splash', 'onboarding', 'roleSelection', 'authSelection', 'login', 'signup', 'phoneLogin', 'otpVerification', 'emailOTPVerification', 'rideOtpVerification', 'welcome', 'poolingSelection', 'driverDocuments', 'verificationInProgress', 'driverWelcome', 'driverHome', 'driverWallet', 'publishTrip', 'myTrips', 'bookingRequests', 'activeRide', 'passengerHome', 'searchTrips', 'tripBooking', 'passengerProfile', 'paymentDetails', 'myBookings', 'rideHistory', 'passengerRideDetails', 'paymentScreen', 'profile', 'linkGoogle']);
+    const validScreens = new Set(['splash', 'onboarding', 'roleSelection', 'authSelection', 'login', 'signup', 'phoneLogin', 'otpVerification', 'emailOTPVerification', 'rideOtpVerification', 'welcome', 'poolingSelection', 'driverDocuments', 'verificationInProgress', 'driverWelcome', 'driverHome', 'driverWallet', 'publishTrip', 'myTrips', 'bookingRequests', 'activeRide', 'passengerHome', 'searchTrips', 'tripBooking', 'passengerProfile', 'passengerWallet', 'paymentDetails', 'myBookings', 'rideHistory', 'passengerRideDetails', 'paymentScreen', 'profile', 'linkGoogle']);
     return validScreens.has(saved) ? saved : 'splash';
   });
 
@@ -94,6 +94,8 @@ function App() {
             setCurrentScreen('driverHome');
           } else if (backendState?.driverStatus === 'pending') {
             setCurrentScreen('verificationInProgress');
+          } else if (backendState?.driverStatus === 'suspended') {
+            setCurrentScreen('driverWallet');
           } else {
             setCurrentScreen('driverDocuments');
           }
@@ -130,7 +132,11 @@ function App() {
       console.log('[App] Logout successful, redirecting to RoleSelection');
       toast.success('Logged out successfully', { id: toastId });
 
-      localStorage.clear();
+      // Targeted removal instead of localStorage.clear() to preserve onboarding state
+      localStorage.removeItem('currentScreen');
+      localStorage.removeItem('userRole');
+      localStorage.removeItem('xpool_manual_token');
+      localStorage.removeItem('xpool-auth-token'); 
       sessionStorage.clear();
       setSession(null);
       setUserRole(null);
@@ -144,10 +150,12 @@ function App() {
   };
 
   const checkOnboardingStatus = async (user, backendState) => {
-    // If a user logs in via Phone, they won't have an email until they link Google.
-    // Google/Email auth natively provide an email.
     if (!user.email) {
-      setCurrentScreen('linkGoogle');
+      setCurrentScreen('addEmailSignup');
+      return false;
+    }
+    if (!user.phone) {
+      setCurrentScreen('addPhoneLogin');
       return false;
     }
     return true;
@@ -166,6 +174,7 @@ function App() {
       if (roleToUse === 'driver') {
         if (backendState?.driverStatus === 'approved') setCurrentScreen('driverHome');
         else if (backendState?.driverStatus === 'pending') setCurrentScreen('verificationInProgress');
+        else if (backendState?.driverStatus === 'suspended') setCurrentScreen('driverWallet');
         else setCurrentScreen('driverDocuments');
       } else {
         setCurrentScreen('passengerHome');
@@ -242,7 +251,26 @@ function App() {
   };
 
   // Initial Session Check & State Restoration
-  // Initial Session Check & State Restoration
+  useEffect(() => {
+    // Listen for deep links (e.g., from Google OAuth or Email Verification)
+    const listenerPromise = CapacitorApp.addListener('appUrlOpen', async (event) => {
+      console.log('[App] Deep link received:', event.url);
+      
+      // Supabase's JS client will automatically parse the session from the URL
+      // if detectSessionInUrl is true in the client config, 
+      // but we need to ensure the App component re-evaluates auth state.
+      // Often, just the redirect triggers the onAuthStateChange listener anyway.
+    });
+
+    return () => {
+      listenerPromise.then(listener => {
+        if (listener && listener.remove) {
+           listener.remove();
+        }
+      });
+    };
+  }, []);
+
   useEffect(() => {
     // Safety Timeout to force Splash screen to clear
     const safetyTimeout = setTimeout(() => {
@@ -271,59 +299,16 @@ function App() {
 
     const initializeSession = async () => {
       try {
-        // [Manual Restore] Process manual token if exists
-        const manualToken = localStorage.getItem('xpool_manual_token');
-        if (manualToken) {
-          console.log('[App] Found manual token. Claiming it to prevent loops...');
-          // Remove the token immediately to prevent infinite reload loops if this crashes
-          localStorage.removeItem('xpool_manual_token');
-
-          try {
-            // Attempt to parse the JSON bundle (v2.1)
-            let tokenBundle;
-            try {
-              tokenBundle = JSON.parse(manualToken);
-            } catch (e) {
-              // Fallback for old simple refresh token format (v2.0)
-              tokenBundle = { refresh_token: manualToken };
-            }
-
-            const { data, error } = await supabase.auth.setSession(tokenBundle);
-
-            if (!error && data?.session) {
-              console.log('[App] Manual restore success');
-              // Only write it back if successful
-              localStorage.setItem('xpool_manual_token', JSON.stringify({
-                access_token: data.session.access_token,
-                refresh_token: data.session.refresh_token
-              }));
-            } else {
-              console.warn('[App] Manual restore failed, attempting refresh...', error);
-
-              // Fallback: If setSession fails, try refreshing
-              const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-
-              if (!refreshError && refreshData?.session) {
-                console.log('[App] Session refresh successful');
-                localStorage.setItem('xpool_manual_token', JSON.stringify({
-                  access_token: refreshData.session.access_token,
-                  refresh_token: refreshData.session.refresh_token
-                }));
-              } else {
-                console.error('[App] Complete session restoration failed');
-                // Do NOT write the token back, it's dead
-              }
-            }
-          } catch (e) {
-            console.error('[App] Manual restore error:', e);
-          }
-        }
-
         const { data: { session: existingSession } } = await supabase.auth.getSession();
         console.log('[App] Session loaded:', existingSession ? 'Yes' : 'No');
         setSession(existingSession);
 
         if (existingSession?.user) {
+          // Silent repair of onboarding flag just in case it was wiped by former clear() bug
+          if (!localStorage.getItem('hasSeenOnboarding')) {
+             localStorage.setItem('hasSeenOnboarding', 'true');
+          }
+
           // Restore state from backend if user is logged in
           console.log('[App] Fetching backend state for user:', existingSession.user.id);
           const backendState = await fetchStateFromBackend(existingSession.user.id);
@@ -339,69 +324,52 @@ function App() {
               return;
             }
 
-            // Validate if the saved screen is valid for this user
-            const validScreens = new Set([
-              'splash', 'onboarding', 'roleSelection', 'authSelection', 'login',
-              'signup', 'phoneLogin', 'otpVerification', 'emailOTPVerification', 'rideOtpVerification', 'welcome', 'poolingSelection',
-              'driverDocuments', 'verificationInProgress', 'driverWelcome', 'driverHome',
-              'driverWallet', 'publishTrip', 'myTrips', 'bookingRequests', 'activeRide',
-              'passengerHome', 'searchTrips', 'tripBooking', 'passengerProfile',
-              'paymentDetails', 'myBookings', 'rideHistory', 'passengerRideDetails', 'profile'
+            // Build the set of FULL valid stateless screens. We exclude screens that require transient state (like selectedTrip)
+            const statelessScreens = new Set([
+              'driverHome', 'driverWallet', 'publishTrip', 'myTrips', 'bookingRequests', 'activeRide',
+              'passengerHome', 'searchTrips', 'passengerProfile', 'passengerWallet', 'myBookings', 'rideHistory',
+              'profile'
             ]);
 
-            // Check if saved screen is valid
-            const isValidScreen = backendState.screen && validScreens.has(backendState.screen);
+            // We prefer the screen saved in localStorage because backend sync is debounced and could be behind
+            const savedScreenLocal = localStorage.getItem('currentScreen');
+            const targetScreen = savedScreenLocal && statelessScreens.has(savedScreenLocal) 
+              ? savedScreenLocal 
+              : (backendState.screen && statelessScreens.has(backendState.screen) ? backendState.screen : null);
 
             // Check if screen is appropriate for user role
-            const isAppropriateForRole = () => {
-              if (!backendState.screen) return false;
+            const isAppropriateForRole = (screen) => {
               if (backendState.role === 'driver') {
-                return !backendState.screen.includes('passenger') ||
-                  ['profile'].includes(backendState.screen);
+                return !screen.includes('passenger') || ['profile'].includes(screen);
               } else {
-                return !backendState.screen.includes('driver') ||
-                  ['profile'].includes(backendState.screen);
+                return !screen.includes('driver') || ['profile'].includes(screen);
               }
             };
 
-            // Priority Check: Driver Status
-            if (backendState.role === 'driver' && backendState.driverStatus === 'approved') {
-              console.log('[App] Approved driver, setting screen to driverHome');
-              setCurrentScreen('driverHome');
-            }
-            // Smart redirection check
-            else if (['login', 'signup', 'authSelection', 'roleSelection', 'splash', 'onboarding'].includes(backendState.screen)) {
+            if (targetScreen && isAppropriateForRole(targetScreen)) {
               if (backendState.role === 'driver') {
-                console.log('[App] Driver on auth screen, redirecting to driverHome');
-                setCurrentScreen('driverHome');
-              } else if (backendState.role === 'passenger') {
-                console.log('[App] Passenger on auth screen, redirecting to passengerHome');
-                setCurrentScreen('passengerHome');
-              } else {
-                setCurrentScreen(backendState.screen);
-              }
-            }
-            // Only restore if screen is valid AND appropriate for role
-            else if (isValidScreen && isAppropriateForRole()) {
-              if (backendState.role === 'driver' && backendState.driverStatus === 'rejected') {
-                console.log('[App] Rejected driver, setting to driverDocuments');
-                setCurrentScreen('driverDocuments');
-              } else {
-                console.log('[App] Restoring saved screen:', backendState.screen);
-                setCurrentScreen(backendState.screen || 'welcome');
-              }
-            }
-            // If invalid screen, use role-based fallback
-            else {
-              console.log('[App] Invalid or inappropriate screen detected, using role-based fallback');
-              if (backendState.role === 'driver') {
-                if (backendState.driverStatus === 'approved') {
-                  setCurrentScreen('driverHome');
+                if (backendState.driverStatus === 'suspended') {
+                  setCurrentScreen('driverWallet');
+                } else if (backendState.driverStatus === 'rejected') {
+                  setCurrentScreen('driverDocuments');
                 } else if (backendState.driverStatus === 'pending') {
                   setCurrentScreen('verificationInProgress');
                 } else {
-                  setCurrentScreen('driverDocuments');
+                  console.log('[App] Restoring saved driver screen:', targetScreen);
+                  setCurrentScreen(targetScreen);
                 }
+              } else {
+                console.log('[App] Restoring saved passenger screen:', targetScreen);
+                setCurrentScreen(targetScreen);
+              }
+            } else {
+              // Fallback routing
+              console.log('[App] Invalid, auth, or inappropriate screen, routing to default');
+              if (backendState.role === 'driver') {
+                if (backendState.driverStatus === 'approved') setCurrentScreen('driverHome');
+                else if (backendState.driverStatus === 'pending') setCurrentScreen('verificationInProgress');
+                else if (backendState.driverStatus === 'suspended') setCurrentScreen('driverWallet');
+                else setCurrentScreen('driverDocuments');
               } else {
                 setCurrentScreen('passengerHome');
               }
@@ -446,14 +414,7 @@ function App() {
       console.log('[App] Auth state changed:', _event, newSession?.user?.id);
 
       // ─── Manual Token Sync ────────────────────────────────────────────────
-      if (newSession) {
-        localStorage.setItem('xpool_manual_token', JSON.stringify({
-          access_token: newSession.access_token,
-          refresh_token: newSession.refresh_token
-        }));
-      } else if (!newSession && _event === 'SIGNED_OUT') {
-        localStorage.removeItem('xpool_manual_token');
-      }
+      // Removed manual token sync as it conflicts with Supabase native persistence
 
       setSession(newSession);
 
@@ -472,7 +433,7 @@ function App() {
         if (backendState?.role) setUserRole(backendState.role);
 
         // If user is on an auth screen, they just finished OAuth → route to home
-        const authScreens = ['authSelection', 'login', 'signup', 'roleSelection', 'linkGoogle', 'onboarding', 'splash'];
+        const authScreens = ['authSelection', 'login', 'signup', 'roleSelection', 'onboarding', 'splash'];
         const current = localStorage.getItem('currentScreen');
         if (!current || authScreens.includes(current)) {
           console.log('[App] OAuth SIGNED_IN on auth screen → routing to home');
@@ -481,6 +442,7 @@ function App() {
           if (role === 'driver') {
             if (backendState?.driverStatus === 'approved') setCurrentScreen('driverHome');
             else if (backendState?.driverStatus === 'pending') setCurrentScreen('verificationInProgress');
+            else if (backendState?.driverStatus === 'suspended') setCurrentScreen('driverWallet');
             else setCurrentScreen('driverDocuments');
           } else {
             setCurrentScreen('passengerHome');
@@ -491,7 +453,11 @@ function App() {
       // ─── SIGNED_OUT: Full state teardown ─────────────────────────────────
       if (_event === 'SIGNED_OUT') {
         console.log('[App] SIGNED_OUT event received');
-        localStorage.clear();
+        // Targeted removal instead of localStorage.clear() to preserve onboarding state
+        localStorage.removeItem('currentScreen');
+        localStorage.removeItem('userRole');
+        localStorage.removeItem('xpool_manual_token');
+        localStorage.removeItem('xpool-auth-token');
         sessionStorage.clear();
         setUserRole(null);
         setCurrentScreen('roleSelection');
@@ -720,6 +686,9 @@ function App() {
             } else if (backendState.driverStatus === 'pending') {
               console.log('⏳ Driver verification pending');
               setCurrentScreen('verificationInProgress');
+            } else if (backendState.driverStatus === 'suspended') {
+              console.log('❌ Driver suspended (negative wallet balance) -> Navigating to driverWallet');
+              setCurrentScreen('driverWallet');
             } else {
               // Rejected, Unknown, or New Driver -> Document Upload
               console.log('❌ Driver not approved (status: ' + backendState.driverStatus + ') -> Navigating to driverDocuments');
@@ -727,7 +696,8 @@ function App() {
             }
           } else {
             // Passenger logic
-            if (backendState.screen && !['login', 'signup', 'authSelection', 'linkGoogle'].includes(backendState.screen)) {
+            const safePassengerScreens = ['passengerHome', 'passengerProfile', 'paymentDetails', 'myBookings', 'rideHistory', 'profile'];
+            if (backendState.screen && safePassengerScreens.includes(backendState.screen)) {
               console.log('Navigating to saved screen:', backendState.screen);
               setCurrentScreen(backendState.screen);
             } else {
@@ -885,8 +855,45 @@ function App() {
         />
       )}
 
-      {currentScreen === 'linkGoogle' && (
-        <LinkGoogle />
+      {currentScreen === 'addEmailSignup' && (
+        <Signup
+          isAddMode={true}
+          onBack={handleLogout}
+          onSignupOTPNeeded={(email) => {
+            setSignupEmail(email);
+            setCurrentScreen('addEmailOTPVerification');
+          }}
+          role={userRole}
+        />
+      )}
+
+      {currentScreen === 'addEmailOTPVerification' && (
+        <EmailOTPVerification
+          isAddMode={true}
+          email={signupEmail}
+          onBack={() => setCurrentScreen('addEmailSignup')}
+          onVerified={handleSignupSuccess}
+        />
+      )}
+
+      {currentScreen === 'addPhoneLogin' && (
+        <PhoneLogin
+          isAddMode={true}
+          onBack={handleLogout}
+          onProceed={(phone) => {
+            setPhoneNumber(phone);
+            setCurrentScreen('addOTPVerification');
+          }}
+        />
+      )}
+
+      {currentScreen === 'addOTPVerification' && (
+        <OTPVerification
+          isAddMode={true}
+          phoneNumber={phoneNumber}
+          onBack={() => setCurrentScreen('addPhoneLogin')}
+          onVerify={handleOnboardingStepComplete}
+        />
       )}
 
       {currentScreen === 'welcome' && (
@@ -1052,6 +1059,12 @@ function App() {
           />
         )}
 
+        {currentScreen === 'passengerWallet' && (
+          <PassengerWallet
+            onBack={() => setCurrentScreen('passengerHome')}
+          />
+        )}
+
         {currentScreen === 'paymentDetails' && (
           <PaymentDetails
             onBack={() => setCurrentScreen('passengerHome')}
@@ -1101,7 +1114,7 @@ function App() {
           <PaymentScreen
             paymentData={paymentData}
             onBack={() => setCurrentScreen('myBookings')}
-            onPaymentComplete={() => setCurrentScreen('myBookings')}
+            onPaymentComplete={() => setCurrentScreen('rideHistory')}
           />
         )}
 
@@ -1123,6 +1136,8 @@ function App() {
       {appContent}
     </APIProvider>
   ) : (
+
+
     appContent
   );
 }

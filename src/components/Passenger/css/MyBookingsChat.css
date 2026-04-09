@@ -1,0 +1,32 @@
+.chat-overlay-container {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background-color: var(--bg-white);
+}
+
+.mini-chat-btn {
+    background: #fef9c3;
+    border: 1px solid #fde047;
+    border-radius: 50%;
+    width: 2.2rem;
+    height: 2.2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ca8a04;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 5px rgba(250, 204, 21, 0.2);
+}
+
+.mini-chat-btn:hover {
+    background: #fde047;
+    color: #a16207;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(250, 204, 21, 0.3);
+}
+
+.mini-chat-btn:active {
+    transform: translateY(0);
+}

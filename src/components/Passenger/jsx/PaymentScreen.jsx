@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, CreditCard, ShieldCheck, CheckCircle, Loader2, AlertCircle } from 'lucide-react';
 import { paymentService } from '../../../services/payments/PaymentService';
+import { supabase } from '../../../supabaseClient';
 import toast from 'react-hot-toast';
 import '../css/PaymentScreen.css';
 
@@ -131,11 +132,32 @@ const PaymentScreen = ({ paymentData, onBack, onPaymentComplete }) => {
         }
     };
 
-    const handleSuccess = () => {
+    const handleSuccess = async () => {
         setPaymentStatus('success');
-        toast.success('Payment completed successfully!');
+
+        try {
+            // Force the booking/ride to 'completed' status immediately on front-end
+            if (paymentData?.booking_id) {
+                await supabase
+                    .from('booking_requests')
+                    .update({ status: 'completed', drop_status: 'completed' })
+                    .eq('id', paymentData.booking_id);
+            }
+        } catch (err) {
+            console.error('Failed to update booking status automatically:', err);
+        }
+
+        toast.success('Paid successfully and your ride completed, thank you for choosing xpool', {
+            duration: 4000,
+            icon: '✅',
+            style: {
+                minWidth: '350px',
+                textAlign: 'center'
+            }
+        });
+
         if (onPaymentComplete) {
-            setTimeout(onPaymentComplete, 2000); // give time to see success
+            setTimeout(onPaymentComplete, 4000); // give ample time to see success and read the message
         }
     };
 

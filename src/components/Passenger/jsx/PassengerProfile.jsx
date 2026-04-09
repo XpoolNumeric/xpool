@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, User, Mail, Phone, Camera, Edit2, Save, X } from 'lucide-react';
+import { ArrowLeft, User, Mail, Phone, Camera, Edit2, Save, X, Calendar, Star, Wallet, Clock, MapPin, Shield, Award } from 'lucide-react';
 import { supabase } from '../../../supabaseClient';
 import toast from 'react-hot-toast';
 import { getSafeSession } from '../../../utils/webViewHelper';
@@ -19,15 +19,23 @@ const PassengerProfile = ({ onBack, onLogout }) => {
         upcomingRides: 0,
         completedRides: 0,
     });
+    const [extraInfo, setExtraInfo] = useState({
+        memberSince: null,
+        avgRating: null,
+        reviewCount: 0,
+        totalSpent: 0,
+        favouriteRoute: null,
+        avatarUrl: null,
+    });
 
     useEffect(() => {
         fetchProfile();
         fetchStats();
+        fetchExtraInfo();
     }, []);
 
     const fetchProfile = async () => {
         try {
-            // Use getSafeSession to prevent infinite loading if auth check hangs
             const { data: sessionData, error: sessionError } = await getSafeSession(supabase, 4000);
 
             if (sessionError || !sessionData?.session) {
@@ -42,16 +50,15 @@ const PassengerProfile = ({ onBack, onLogout }) => {
                 .from('profiles')
                 .select('*')
                 .eq('id', user.id)
-                .eq('id', user.id)
                 .maybeSingle();
 
             if (error) throw error;
 
             setProfile(data);
             setFormData({
-                full_name: data.full_name || '',
+                full_name: data?.full_name || '',
                 email: user.email || '',
-                phone: data.phone || '',
+                phone: data?.phone || '',
             });
         } catch (error) {
             console.error('Error fetching profile:', error);
@@ -66,7 +73,6 @@ const PassengerProfile = ({ onBack, onLogout }) => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            // Get all bookings
             const { data: bookings } = await supabase
                 .from('booking_requests')
                 .select('status, trips(travel_date, status)')
@@ -92,6 +98,78 @@ const PassengerProfile = ({ onBack, onLogout }) => {
             }
         } catch (error) {
             console.error('Error fetching stats:', error);
+        }
+    };
+
+    const fetchExtraInfo = async () => {
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            // Fetch in parallel: profile meta, reviews, payments, bookings for route
+            const [profileRes, reviewsRes, bookingsRes] = await Promise.all([
+                supabase
+                    .from('profiles')
+                    .select('created_at, avatar_url')
+                    .eq('id', user.id)
+                    .maybeSingle(),
+                supabase
+                    .from('reviews')
+                    .select('rating')
+                    .eq('target_id', user.id),
+                supabase
+                    .from('booking_requests')
+                    .select('seats_requested, status, trips(from_location, to_location, price_per_seat, status)')
+                    .eq('passenger_id', user.id)
+                    .in('status', ['approved']),
+            ]);
+
+            const info = {
+                memberSince: profileRes.data?.created_at || null,
+                avatarUrl: profileRes.data?.avatar_url || null,
+                avgRating: null,
+                reviewCount: 0,
+                totalSpent: 0,
+                favouriteRoute: null,
+            };
+
+            // Calculate average rating
+            if (reviewsRes.data && reviewsRes.data.length > 0) {
+                const sum = reviewsRes.data.reduce((acc, r) => acc + r.rating, 0);
+                info.avgRating = (sum / reviewsRes.data.length).toFixed(1);
+                info.reviewCount = reviewsRes.data.length;
+            }
+
+            // Calculate total spent and favourite route
+            if (bookingsRes.data && bookingsRes.data.length > 0) {
+                let totalSpent = 0;
+                const routeCount = {};
+
+                bookingsRes.data.forEach(b => {
+                    if (b.trips && b.trips.price_per_seat && b.trips.status === 'completed') {
+                        totalSpent += b.trips.price_per_seat * (b.seats_requested || 1);
+                    }
+                    if (b.trips?.from_location && b.trips?.to_location) {
+                        const route = `${b.trips.from_location} → ${b.trips.to_location}`;
+                        routeCount[route] = (routeCount[route] || 0) + 1;
+                    }
+                });
+
+                info.totalSpent = totalSpent;
+
+                // Find most frequent route
+                let maxCount = 0;
+                Object.entries(routeCount).forEach(([route, count]) => {
+                    if (count > maxCount) {
+                        maxCount = count;
+                        info.favouriteRoute = route;
+                    }
+                });
+            }
+
+            setExtraInfo(info);
+        } catch (error) {
+            console.error('Error fetching extra info:', error);
         }
     };
 
@@ -128,6 +206,15 @@ const PassengerProfile = ({ onBack, onLogout }) => {
         setEditing(false);
     };
 
+    const formatMemberSince = (dateStr) => {
+        if (!dateStr) return 'N/A';
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+    };
+
+    const avatarSrc = extraInfo.avatarUrl ||
+        `https://api.dicebear.com/7.x/avataaars/svg?seed=${formData.full_name || 'Passenger'}`;
+
     return (
         <div className="passenger-profile-container">
             {/* Header */}
@@ -151,38 +238,99 @@ const PassengerProfile = ({ onBack, onLogout }) => {
                     <p>Loading profile...</p>
                 </div>
             ) : (
-                <>
+                <div className="profile-scroll-content">
                     {/* Profile Picture Section */}
                     <div className="profile-picture-section">
                         <div className="profile-picture">
-                            <User size={48} />
+                            <img src={avatarSrc} alt="Profile" className="profile-avatar-img" />
                             <button className="change-picture-btn">
                                 <Camera size={16} />
                             </button>
                         </div>
                         <h2>{formData.full_name || 'Passenger'}</h2>
                         <span className="user-role">Passenger</span>
+                        {extraInfo.memberSince && (
+                            <div className="member-since">
+                                <Calendar size={14} />
+                                <span>Member since {formatMemberSince(extraInfo.memberSince)}</span>
+                            </div>
+                        )}
                     </div>
 
                     {/* Stats Cards */}
                     <div className="stats-grid">
                         <div className="stat-card">
+                            <div className="stat-icon">
+                                <MapPin size={20} />
+                            </div>
                             <div className="stat-value">{stats.totalRides}</div>
                             <div className="stat-label">Total Rides</div>
                         </div>
                         <div className="stat-card">
+                            <div className="stat-icon upcoming">
+                                <Clock size={20} />
+                            </div>
                             <div className="stat-value">{stats.upcomingRides}</div>
                             <div className="stat-label">Upcoming</div>
                         </div>
                         <div className="stat-card">
+                            <div className="stat-icon completed">
+                                <Award size={20} />
+                            </div>
                             <div className="stat-value">{stats.completedRides}</div>
                             <div className="stat-label">Completed</div>
                         </div>
                     </div>
 
+                    {/* Rating & Spending Summary */}
+                    <div className="summary-cards">
+                        <div className="summary-card rating-card">
+                            <div className="summary-icon-wrap">
+                                <Star size={20} fill="#EAB308" color="#EAB308" />
+                            </div>
+                            <div className="summary-content">
+                                <div className="summary-value">
+                                    {extraInfo.avgRating || 'New'}
+                                </div>
+                                <div className="summary-label">
+                                    {extraInfo.reviewCount > 0
+                                        ? `${extraInfo.reviewCount} review${extraInfo.reviewCount > 1 ? 's' : ''}`
+                                        : 'No reviews yet'}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="summary-card spending-card">
+                            <div className="summary-icon-wrap spending">
+                                <Wallet size={20} />
+                            </div>
+                            <div className="summary-content">
+                                <div className="summary-value">
+                                    ₹{extraInfo.totalSpent.toLocaleString('en-IN')}
+                                </div>
+                                <div className="summary-label">Total Spent</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Favourite Route */}
+                    {extraInfo.favouriteRoute && (
+                        <div className="favourite-route-section">
+                            <h3>
+                                <MapPin size={16} />
+                                Frequent Route
+                            </h3>
+                            <div className="route-display">
+                                {extraInfo.favouriteRoute}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Profile Information */}
                     <div className="profile-info-section">
-                        <h3>Personal Information</h3>
+                        <h3>
+                            <Shield size={16} />
+                            Personal Information
+                        </h3>
 
                         <div className="info-field">
                             <label>
@@ -247,9 +395,8 @@ const PassengerProfile = ({ onBack, onLogout }) => {
                             </button>
                         </div>
                     )}
-                </>
-            )
-            }
+                </div>
+            )}
         </div >
     );
 };

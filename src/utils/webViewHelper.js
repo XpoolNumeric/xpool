@@ -171,16 +171,18 @@ class LoggingStorage {
  * @returns {Storage|MemoryStorage|LoggingStorage} Storage adapter
  */
 export const getStorageAdapter = () => {
-  let adapter;
   if (isLocalStorageAvailable()) {
-    adapter = window.localStorage;
-  } else {
-    console.warn('localStorage not available, using in-memory storage (session will not persist)');
-    adapter = new MemoryStorage();
+    return window.localStorage;
   }
-
-  // Wrap in logging adapter for debugging
-  return new LoggingStorage(adapter);
+  
+  // Minimal memory fallback if totally missing (unlikely in real browsers)
+  return {
+    _storage: new Map(),
+    getItem(key) { return this._storage.get(key) || null; },
+    setItem(key, value) { this._storage.set(key, value); },
+    removeItem(key) { this._storage.delete(key); },
+    clear() { this._storage.clear(); }
+  };
 };
 
 /**

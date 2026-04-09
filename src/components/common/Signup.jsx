@@ -3,7 +3,7 @@ import { supabase } from '../../supabaseClient';
 import toast from 'react-hot-toast';
 import './Signup.css';
 
-const Signup = ({ onBack, onLoginClick, onSignupOTPNeeded, role }) => {
+const Signup = ({ onBack, onLoginClick, onSignupOTPNeeded, role, isAddMode = false }) => {
     const [fullName, setFullName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -21,24 +21,40 @@ const Signup = ({ onBack, onLoginClick, onSignupOTPNeeded, role }) => {
 
         try {
             setLoading(true);
-            const { data, error } = await supabase.auth.signUp({
-                email,
-                password,
-                options: {
+
+            if (isAddMode) {
+                // User is already logged in via phone, just add email & password
+                const { error } = await supabase.auth.updateUser({
+                    email,
+                    password,
                     data: {
                         full_name: fullName,
                         role: role
                     }
-                }
-            });
-
-            if (error) throw error;
+                });
+                if (error) throw error;
+                toast.success('Check your email for the verification code.');
+            } else {
+                // Normal new signup
+                const { error } = await supabase.auth.signUp({
+                    email,
+                    password,
+                    options: {
+                        data: {
+                            full_name: fullName,
+                            role: role
+                        },
+                        emailRedirectTo: 'com.xpool.app://callback'
+                    }
+                });
+                if (error) throw error;
+                toast.success('Account created! Please check your email for the verification code.');
+            }
 
             // Route to email OTP verification screen before proceeding
-            toast.success('Account created! Please check your email for the verification code.');
             if (onSignupOTPNeeded) {
                 onSignupOTPNeeded(email);
-            } else {
+            } else if (!isAddMode) {
                 onLoginClick();
             }
         } catch (error) {
@@ -62,7 +78,12 @@ const Signup = ({ onBack, onLoginClick, onSignupOTPNeeded, role }) => {
             </div>
 
             <div className="signup-form-container">
-                <h2 className="form-title">Create your Account</h2>
+                <h2 className="form-title">{isAddMode ? 'Add Email & Password' : 'Create your Account'}</h2>
+                {isAddMode && (
+                    <p style={{ color: '#888', fontSize: '13px', marginTop: '6px' }}>
+                        Finish setting up your account by providing an email.
+                    </p>
+                )}
 
                 <form className="signup-form" onSubmit={handleSubmit}>
                     <div className="input-group">
@@ -149,15 +170,17 @@ const Signup = ({ onBack, onLoginClick, onSignupOTPNeeded, role }) => {
                     </div>
 
                     <button type="submit" className="signup-btn" disabled={loading}>
-                        {loading ? 'Signing up...' : 'Sign Up'}
+                        {loading ? 'Saving...' : (isAddMode ? 'Verify Email' : 'Sign Up')}
                     </button>
                 </form>
             </div>
 
-            <div className="signup-footer">
-                Already have an account?
-                <span className="login-link" onClick={onLoginClick}>Sign in</span>
-            </div>
+            {!isAddMode && (
+                <div className="signup-footer">
+                    Already have an account?
+                    <span className="login-link" onClick={onLoginClick}>Sign in</span>
+                </div>
+            )}
         </div>
     );
 };

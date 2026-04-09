@@ -47,7 +47,7 @@ const LocationInput = ({ label, placeholder, value, onChange, onPlaceSelect, cla
             }
 
             const response = await fetch(
-                `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(input)}&components=country:IN&key=${API_KEYAIzaSyB7_39jR - kqbchHlKHzBtmWbtAbY8jrtbw}`
+                `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(input)}&components=country:IN&key=${API_KEY}`
             );
             const data = await response.json();
 

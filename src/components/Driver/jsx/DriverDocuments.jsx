@@ -307,57 +307,24 @@ const NameDetailsForm = ({ onSubmit, initialData = {} }) => {
     );
 };
 
-const VehicleDetailsForm = ({ onSubmit }) => {
+const RCBookForm = ({ onSubmit }) => {
     const [vehicleNo, setVehicleNo] = useState('');
-    const [files, setFiles] = useState({ front: null, back: null, left: null, right: null });
+    const [front, setFront] = useState(null);
+    const [back, setBack] = useState(null);
     const [loading, setLoading] = useState(false);
 
-    const handleFile = (key, e) => setFiles({ ...files, [key]: e.target.files[0] });
-
     const handleSubmit = async () => {
-        if (!vehicleNo || !files.front || !files.back || !files.left || !files.right) {
-            toast.error("All 4 photos and vehicle number are required");
-            return;
-        }
+        if (!vehicleNo || !front || !back) { toast.error("Vehicle number and both RC sides required"); return; }
         setLoading(true);
         try {
-            const urls = {};
-            for (const key of Object.keys(files)) {
-                urls[`vehicle_${key}_url`] = await uploadFileToSupabase(files[key], `vehicle_${key}`);
-            }
-            onSubmit({ vehicle_number: vehicleNo, ...urls });
+            const fUrl = await uploadFileToSupabase(front, 'rc_front');
+            const bUrl = await uploadFileToSupabase(back, 'rc_back');
+            onSubmit({ vehicle_number: vehicleNo, rc_front_url: fUrl, rc_back_url: bUrl });
         } catch (e) { } finally { setLoading(false); }
     };
 
     return (
         <div className="space-y-6 animate-fadeIn">
-            <div className="bg-yellow-50 p-4 rounded-xl border border-brand-yellow/20 text-center">
-                <h4 className="text-sm font-bold text-gray-800">Upload Vehicle Photos</h4>
-                <p className="text-xs text-gray-500 mt-1">Please ensure license plate is visible</p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-                {['front', 'back', 'left', 'right'].map(side => (
-                    <div className="flex flex-col gap-2" key={side}>
-                        <span className="text-[10px] font-bold text-gray-400 section-header uppercase">{side} View</span>
-                        <button
-                            className={`relative h-24 rounded-lg border-2 border-dashed transition-all overflow-hidden ${files[side] ? 'border-brand-yellow' : 'border-gray-200 hover:border-gray-300'}`}
-                            onClick={() => document.getElementById(`v-${side}`).click()}
-                        >
-                            {files[side] ? (
-                                <img src={URL.createObjectURL(files[side])} className="w-full h-full object-cover opacity-80" alt={side} />
-                            ) : (
-                                <div className="flex flex-col items-center justify-center h-full text-gray-300">
-                                    <UploadIcon />
-                                </div>
-                            )}
-                            {files[side] && <div className="absolute inset-0 flex items-center justify-center bg-black/20"><CheckIcon /></div>}
-                        </button>
-                        <input id={`v-${side}`} type="file" hidden accept="image/*" onChange={(e) => handleFile(side, e)} />
-                    </div>
-                ))}
-            </div>
-
             <div className="space-y-2">
                 <label className="text-xs font-bold text-gray-600 uppercase">Vehicle Number</label>
                 <input
@@ -368,31 +335,6 @@ const VehicleDetailsForm = ({ onSubmit }) => {
                 />
             </div>
 
-            <button className="w-full bg-brand-yellow text-black py-4 rounded-xl font-bold text-lg hover:bg-yellow-400 transition-all shadow-lg active:scale-[0.98]" disabled={loading} onClick={handleSubmit}>
-                {loading ? <Loader2 className="animate-spin inline mr-2" /> : ''}
-                {loading ? 'Uploading...' : 'Submit Vehicle Photos'}
-            </button>
-        </div>
-    );
-};
-
-const RCBookForm = ({ onSubmit }) => {
-    const [front, setFront] = useState(null);
-    const [back, setBack] = useState(null);
-    const [loading, setLoading] = useState(false);
-
-    const handleSubmit = async () => {
-        if (!front || !back) { toast.error("Both sides required"); return; }
-        setLoading(true);
-        try {
-            const fUrl = await uploadFileToSupabase(front, 'rc_front');
-            const bUrl = await uploadFileToSupabase(back, 'rc_back');
-            onSubmit({ rc_front_url: fUrl, rc_back_url: bUrl });
-        } catch (e) { } finally { setLoading(false); }
-    };
-
-    return (
-        <div className="space-y-6 animate-fadeIn">
             <div className="grid grid-cols-2 gap-4">
                 <div className="flex flex-col items-center">
                     <span className="block text-sm font-medium mb-2">RC Front *</span>
@@ -499,7 +441,6 @@ const DriverDocuments = ({ selectedVehicle = 'Car', onBack, onComplete, onLogout
     const steps = [
         { id: 'dl', label: 'Driving License', Component: DrivingLicenseForm },
         { id: 'details', label: 'Name and Details', Component: NameDetailsForm },
-        { id: 'vehicle', label: 'Vehicle Details', Component: VehicleDetailsForm },
         { id: 'rc_book', label: 'RC Book Details', Component: RCBookForm },
         { id: 'id_proof', label: 'Aadhaar or PAN Card', Component: AadhaarPanForm },
         { id: 'insurance', label: 'Vehicle Insurance', Component: InsuranceForm },
@@ -545,7 +486,7 @@ const DriverDocuments = ({ selectedVehicle = 'Car', onBack, onComplete, onLogout
                     error = updateError;
                 } else {
                     // Insert new record
-                    const finalData = { ...updatedData, user_id: user.id };
+                    const finalData = { ...updatedData, user_id: user.id, status: 'pending' };
                     const { error: insertError } = await supabase
                         .from('drivers')
                         .insert([finalData]);

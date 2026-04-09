@@ -92,8 +92,7 @@ serve(async (req) => {
                 driver_id: user.id,
                 total_amount: totalAmount,
                 commission_amount: commissionAmount,
-                driver_amount: driverAmount,
-                payment_status: 'pending'
+                driver_amount: driverAmount
             }, { onConflict: 'trip_id,passenger_id' })
             .select()
             .single()
@@ -148,43 +147,9 @@ serve(async (req) => {
         const allDropped = totalApproved?.every(b => b.drop_status === 'completed') || false
 
         if (allDropped) {
-            // Complete the trip
-            await supabaseAdmin
-                .from('trips')
-                .update({
-                    status: 'completed',
-                    completed_at: new Date().toISOString()
-                })
-                .eq('id', trip_id)
-
-            // Credit driver wallet for all payments (COD rides)
-            try {
-                const { data: allPayments } = await supabaseAdmin
-                    .from('ride_payments')
-                    .select('driver_amount')
-                    .eq('trip_id', trip_id)
-                    .eq('payment_status', 'pending')
-
-                if (allPayments && allPayments.length > 0) {
-                    const totalDriverEarning = allPayments.reduce((sum, p) => sum + Number(p.driver_amount), 0)
-
-                    await supabaseAdmin.rpc('add_to_wallet', {
-                        p_driver_user_id: user.id,
-                        p_amount: totalDriverEarning,
-                        p_ride_id: trip_id,
-                        p_description: `Earnings from ride (${allPayments.length} passengers, after 15% commission)`
-                    })
-
-                    // Mark all payments as paid
-                    await supabaseAdmin
-                        .from('ride_payments')
-                        .update({ payment_status: 'paid', paid_at: new Date().toISOString() })
-                        .eq('trip_id', trip_id)
-                        .eq('payment_status', 'pending')
-                }
-            } catch (walletErr) {
-                console.error('Wallet credit error:', walletErr)
-            }
+            // Don't mark trip completed here — driver must swipe-to-finish.
+            // Just report all_dropped so the frontend enables the finish button.
+            console.log('All passengers dropped for trip', trip_id)
         }
 
         return new Response(

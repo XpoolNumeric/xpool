@@ -198,6 +198,9 @@ const MyTrips = ({ onBack, onRideStart }) => {
             // Hide cancelled and expired trips from the "All" view
             return trip.status !== 'cancelled' && trip.status !== 'expired';
         }
+        if (filter === 'active') {
+            return trip.status === 'active' || trip.status === 'full';
+        }
         return trip.status === filter;
     });
 
@@ -255,13 +258,13 @@ const MyTrips = ({ onBack, onRideStart }) => {
                                 <span>Waiting for passengers</span>
                             </div>
                         )}
-                        {trip.status === 'active' && passengerCount > 0 && (
+                        {(trip.status === 'active' || trip.status === 'full') && passengerCount > 0 && (
                             <div className="incentive-badge confirmed">
                                 <CheckCircle size={14} />
                                 <span>{passengerCount} Confirmed</span>
                             </div>
                         )}
-                        {isToday && trip.status === 'active' && (
+                        {isToday && (trip.status === 'active' || trip.status === 'full') && (
                             <div className="incentive-badge today">
                                 <Key size={14} />
                                 <span>Available Today!</span>
@@ -300,7 +303,7 @@ const MyTrips = ({ onBack, onRideStart }) => {
                     </div>
 
                     <div className="action-buttons">
-                        {trip.status === 'active' && (
+                        {(trip.status === 'active' || trip.status === 'full') && (
                             <>
                                 <button
                                     className={`primary-action-btn start ${!isToday ? 'disabled' : ''}`}
@@ -345,7 +348,7 @@ const MyTrips = ({ onBack, onRideStart }) => {
                         )}
                     </div>
 
-                    {trip.status === 'active' && passengerCount > 0 && (
+                    {(trip.status === 'active' || trip.status === 'full') && passengerCount > 0 && (
                         <div className="booking-notification">
                             <Bell size={12} />
                             <span>{passengerCount} confirmed booking{passengerCount > 1 ? 's' : ''}</span>

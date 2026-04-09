@@ -49,16 +49,16 @@ const PublishTrip = ({ onBack, onSuccess, onLogout }) => {
         fetchDriverInfo();
     }, []);
 
-    // Auto-calculate fare when locations change (debounced)
+    // Auto-calculate fare ONLY when locations change (debounced)
     useEffect(() => {
         if (formData.fromLocation.trim() && formData.toLocation.trim()) {
             const timer = setTimeout(() => {
-                calculateFare();
-            }, 1500);
+                calculateFare(formData.fromLocation, formData.toLocation, formData.vehicleType, formData.availableSeats);
+            }, 1000);
 
             return () => clearTimeout(timer);
         }
-    }, [formData.fromLocation, formData.toLocation, formData.vehicleType]);
+    }, [formData.fromLocation, formData.toLocation]);
 
     const fetchDriverInfo = async () => {
         try {
@@ -78,8 +78,13 @@ const PublishTrip = ({ onBack, onSuccess, onLogout }) => {
         }
     };
 
-    const calculateFare = useCallback(async () => {
-        if (!formData.fromLocation.trim() || !formData.toLocation.trim()) {
+    const calculateFare = useCallback(async (
+        from = formData.fromLocation,
+        to = formData.toLocation,
+        vehicle = formData.vehicleType,
+        seats = formData.availableSeats
+    ) => {
+        if (!from.trim() || !to.trim()) {
             return;
         }
 
@@ -87,25 +92,25 @@ const PublishTrip = ({ onBack, onSuccess, onLogout }) => {
         try {
             // Calculate fare for current passenger count
             const fare = await PricingService.calculateFareFromAddresses(
-                formData.fromLocation,
-                formData.toLocation,
-                formData.vehicleType,
-                formData.availableSeats
+                from,
+                to,
+                vehicle,
+                seats
             );
 
             setFareDetails(fare);
 
             // Get breakdown for different passenger counts
             const breakdownData = await PricingService.getFareBreakdown(
-                formData.fromLocation,
-                formData.toLocation,
-                formData.vehicleType
+                from,
+                to,
+                vehicle
             );
 
             setFareBreakdown(breakdownData.breakdowns);
 
-            // Auto-fill price if not set
-            if (!formData.pricePerSeat && fare.perPersonFare) {
+            // Auto-fill price with newly calculated fare
+            if (fare.perPersonFare) {
                 setFormData(prev => ({
                     ...prev,
                     pricePerSeat: fare.perPersonFare.toString()
@@ -118,7 +123,7 @@ const PublishTrip = ({ onBack, onSuccess, onLogout }) => {
             });
         } catch (error) {
             console.error('Error calculating fare:', error);
-            toast.error('Could not calculate fare. Please enter price manually.', {
+            toast.error('Could not calculate fare automatically.', {
                 duration: 4000
             });
         } finally {
@@ -135,11 +140,16 @@ const PublishTrip = ({ onBack, onSuccess, onLogout }) => {
     };
 
     const handleVehicleChange = (type) => {
+        const newSeats = type === 'bike' ? 1 : 3;
         setFormData(prev => ({
             ...prev,
             vehicleType: type,
-            availableSeats: type === 'bike' ? 1 : 3
+            availableSeats: newSeats
         }));
+
+        if (formData.fromLocation && formData.toLocation) {
+            calculateFare(formData.fromLocation, formData.toLocation, type, newSeats);
+        }
     };
 
     const togglePreference = (pref) => {
@@ -264,9 +274,9 @@ const PublishTrip = ({ onBack, onSuccess, onLogout }) => {
             availableSeats: seats
         }));
 
-        // Recalculate fare with new passenger count
+        // Recalculate fare immediately with new passenger count
         if (formData.fromLocation && formData.toLocation) {
-            setTimeout(() => calculateFare(), 500);
+            calculateFare(formData.fromLocation, formData.toLocation, formData.vehicleType, seats);
         }
     };
 
@@ -595,12 +605,10 @@ const PublishTrip = ({ onBack, onSuccess, onLogout }) => {
                         <input
                             type="number"
                             name="pricePerSeat"
-                            className="form-input price-input"
-                            placeholder="0"
+                            className="form-input price-input readonly-input"
+                            placeholder="Calculated automatically"
                             value={formData.pricePerSeat}
-                            onChange={handleChange}
-                            min="0"
-                            step="10"
+                            readOnly
                         />
                     </div>
 
@@ -625,7 +633,7 @@ const PublishTrip = ({ onBack, onSuccess, onLogout }) => {
                     {!formData.pricePerSeat && (
                         <div className="price-help">
                             <AlertCircle size={14} />
-                            <span>Enter price or click "Calculate" for automatic pricing</span>
+                            <span>Price is calculated automatically based on distance and vehicle type</span>
                         </div>
                     )}
                 </div>

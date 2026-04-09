@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Map, AdvancedMarker, useMap, APIProvider } from '@vis.gl/react-google-maps';
-import { MapPin, Navigation, Search, Menu, User, BookOpen, Clock as HistoryIcon, CreditCard, ChevronRight, Calendar, Car, Bike, Phone, Bell, Wallet } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Map, AdvancedMarker, useMap } from '@vis.gl/react-google-maps';
+import { MapPin, Navigation, Search, Menu, User, BookOpen, Clock as HistoryIcon, CreditCard, ChevronRight, Calendar, Car, Bike, Phone, Bell, Wallet, X, CheckCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { supabase } from '../../../supabaseClient';
 import { getCurrentLocation } from '../../../utils/googleMapsHelper';
+import { getAllNotifications, getUnreadCount, markAllNotificationsAsRead, markNotificationAsRead } from '../../../utils/notificationHelper';
 import '../css/PassengerHome.css';
 import LocationInput from '../../common/LocationInput';
 
@@ -132,6 +133,10 @@ const PassengerHome = ({ onBack, onSearchTrips, onNavigate, onLogout, session })
     const [routeInfo, setRouteInfo] = useState(null);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [activeNotification, setActiveNotification] = useState(null);
+    const [isNotifOpen, setIsNotifOpen] = useState(false);
+    const [notifList, setNotifList] = useState([]);
+    const [unreadCount, setUnreadCount] = useState(0);
+    const [notifLoading, setNotifLoading] = useState(false);
 
     // NEW STATES FOR DATA FETCHING
     const [passengerName, setPassengerName] = useState('Passenger');
@@ -454,6 +459,81 @@ const PassengerHome = ({ onBack, onSearchTrips, onNavigate, onLogout, session })
         };
     }, [currentUserId]);
 
+    // ── Notification Fetch & Real-time ──
+    const fetchNotifications = useCallback(async () => {
+        if (!currentUserId) return;
+        setNotifLoading(true);
+        try {
+            const [allNotifs, count] = await Promise.all([
+                getAllNotifications(currentUserId, 30),
+                getUnreadCount(currentUserId)
+            ]);
+            setNotifList(allNotifs);
+            setUnreadCount(count);
+        } catch (e) {
+            console.error('Error fetching notifications:', e);
+        } finally {
+            setNotifLoading(false);
+        }
+    }, [currentUserId]);
+
+    useEffect(() => {
+        fetchNotifications();
+    }, [fetchNotifications]);
+
+    // Real-time subscription for new notifications from DB
+    useEffect(() => {
+        if (!currentUserId) return;
+        const channel = supabase
+            .channel(`notif_bell_${currentUserId}`)
+            .on('postgres_changes', {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'notifications',
+                filter: `user_id=eq.${currentUserId}`
+            }, () => {
+                fetchNotifications();
+            })
+            .subscribe();
+        return () => supabase.removeChannel(channel);
+    }, [currentUserId, fetchNotifications]);
+
+    const handleMarkAllRead = async () => {
+        if (!currentUserId) return;
+        await markAllNotificationsAsRead(currentUserId);
+        setNotifList(prev => prev.map(n => ({ ...n, read: true })));
+        setUnreadCount(0);
+    };
+
+    const handleNotifClick = async (notif) => {
+        if (!notif.read) {
+            await markNotificationAsRead(notif.id);
+            setNotifList(prev => prev.map(n => n.id === notif.id ? { ...n, read: true } : n));
+            setUnreadCount(prev => Math.max(0, prev - 1));
+        }
+    };
+
+    const toggleNotifPanel = () => {
+        const opening = !isNotifOpen;
+        setIsNotifOpen(opening);
+        if (opening) fetchNotifications();
+    };
+
+    const formatNotifTime = (dateStr) => {
+        if (!dateStr) return '';
+        const d = new Date(dateStr);
+        const now = new Date();
+        const diffMs = now - d;
+        const diffMin = Math.floor(diffMs / 60000);
+        if (diffMin < 1) return 'Just now';
+        if (diffMin < 60) return `${diffMin}m ago`;
+        const diffHrs = Math.floor(diffMin / 60);
+        if (diffHrs < 24) return `${diffHrs}h ago`;
+        const diffDays = Math.floor(diffHrs / 24);
+        if (diffDays < 7) return `${diffDays}d ago`;
+        return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+    };
+
     // Initial data fetch - re-runs when session changes (e.g., on remount/navigation)
     useEffect(() => {
         fetchPassengerData();
@@ -600,8 +680,7 @@ const PassengerHome = ({ onBack, onSearchTrips, onNavigate, onLogout, session })
     const defaultCenter = { lat: 19.0760, lng: 72.8777 };
 
     return (
-        <APIProvider apiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}>
-            <div className="passenger-home-container">
+        <div className="passenger-home-container">
                 {/* Active Notification Banner */}
                 {activeNotification && (
                     <div className="active-notification-banner">
@@ -679,17 +758,7 @@ const PassengerHome = ({ onBack, onSearchTrips, onNavigate, onLogout, session })
                             )}
                             <ChevronRight size={16} />
                         </button>
-                        <button onClick={() => handleMenuClick('rideHistory')}>
-                            <HistoryIcon size={20} />
-                            <span>Ride History</span>
-                            <ChevronRight size={16} />
-                        </button>
-                        <button onClick={() => handleMenuClick('paymentDetails')}>
-                            <CreditCard size={20} />
-                            <span>Payment Details</span>
-                            <ChevronRight size={16} />
-                        </button>
-                        <button onClick={() => handleMenuClick('wallet')}>
+                        <button onClick={() => handleMenuClick('passengerWallet')}>
                             <Wallet size={20} />
                             <span>Wallet</span>
                             <ChevronRight size={16} />
@@ -708,6 +777,61 @@ const PassengerHome = ({ onBack, onSearchTrips, onNavigate, onLogout, session })
                 {/* Overlay */}
                 {isMenuOpen && <div className="menu-overlay" onClick={toggleMenu}></div>}
 
+                {/* Notification Panel */}
+                {isNotifOpen && <div className="menu-overlay notif-overlay" onClick={toggleNotifPanel}></div>}
+                <div className={`notif-panel ${isNotifOpen ? 'open' : ''}`}>
+                    <div className="notif-panel-header">
+                        <h3>Notifications</h3>
+                        <div className="notif-header-actions">
+                            {unreadCount > 0 && (
+                                <button className="mark-all-read-btn" onClick={handleMarkAllRead}>
+                                    <CheckCheck size={16} />
+                                    Mark all read
+                                </button>
+                            )}
+                            <button className="notif-close-btn" onClick={toggleNotifPanel}>
+                                <X size={20} />
+                            </button>
+                        </div>
+                    </div>
+                    <div className="notif-panel-body">
+                        {notifLoading ? (
+                            <div className="notif-loading">
+                                <div className="spinner"></div>
+                                <p>Loading...</p>
+                            </div>
+                        ) : notifList.length === 0 ? (
+                            <div className="notif-empty">
+                                <Bell size={40} />
+                                <h4>No notifications</h4>
+                                <p>You'll see updates from drivers and ride status here</p>
+                            </div>
+                        ) : (
+                            notifList.map(notif => (
+                                <div
+                                    key={notif.id}
+                                    className={`notif-item ${!notif.read ? 'unread' : ''}`}
+                                    onClick={() => handleNotifClick(notif)}
+                                >
+                                    <div className="notif-item-icon">
+                                        {notif.type === 'booking_approved' ? '✅' :
+                                         notif.type === 'booking_rejected' ? '❌' :
+                                         notif.type === 'ride_started' ? '🚗' :
+                                         notif.type === 'ride_completed' ? '🏁' :
+                                         notif.type === 'payment' ? '💰' : '🔔'}
+                                    </div>
+                                    <div className="notif-item-content">
+                                        <div className="notif-item-title">{notif.title}</div>
+                                        <div className="notif-item-message">{notif.message}</div>
+                                        <div className="notif-item-time">{formatNotifTime(notif.created_at)}</div>
+                                    </div>
+                                    {!notif.read && <div className="notif-unread-dot"></div>}
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </div>
+
                 {/* Header with Notification Bell */}
                 <div className="yellow-header">
                     <div className="header-content">
@@ -718,10 +842,10 @@ const PassengerHome = ({ onBack, onSearchTrips, onNavigate, onLogout, session })
                             <h1>Xpool</h1>
                             <h2>Find your ride</h2>
                         </div>
-                        <button className="notification-menu-btn" onClick={() => onNavigate?.('notifications')}>
+                        <button className="notification-menu-btn" onClick={toggleNotifPanel}>
                             <Bell size={22} />
-                            {stats.pendingBookings > 0 && (
-                                <span className="notification-dot"></span>
+                            {unreadCount > 0 && (
+                                <span className="notification-dot">{unreadCount > 9 ? '9+' : unreadCount}</span>
                             )}
                         </button>
                     </div>
@@ -898,7 +1022,6 @@ const PassengerHome = ({ onBack, onSearchTrips, onNavigate, onLogout, session })
                     </button>
                 </div>
             </div>
-        </APIProvider>
     );
 };
 

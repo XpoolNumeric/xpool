@@ -6,7 +6,7 @@ import './AuthSelection.css';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-const OTPVerification = ({ onBack, onVerify, phoneNumber, isSignupFlow = false }) => {
+const OTPVerification = ({ onBack, onVerify, phoneNumber, isSignupFlow = false, isAddMode = false }) => {
     const [otp, setOtp] = useState(['', '', '', '', '', '']);
     const [loading, setLoading] = useState(false);
     const [resending, setResending] = useState(false);
@@ -71,7 +71,7 @@ const OTPVerification = ({ onBack, onVerify, phoneNumber, isSignupFlow = false }
             const { data, error } = await supabase.auth.verifyOtp({
                 phone: phoneNumber,
                 token: otpString,
-                type: 'sms'
+                type: isAddMode ? 'phone_change' : 'sms'
             });
             if (error) throw error;
 
@@ -90,8 +90,9 @@ const OTPVerification = ({ onBack, onVerify, phoneNumber, isSignupFlow = false }
     const handleResendOtp = async () => {
         try {
             setResending(true);
-            const { error } = await supabase.auth.signInWithOtp({
+            const { error } = await supabase.auth.resend({
                 phone: phoneNumber,
+                type: isAddMode ? 'phone_change' : 'sms',
             });
             if (error) throw error;
             toast.success('OTP resent successfully!');

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Calendar, Car, Bike, Search } from 'lucide-react';
+import { ArrowLeft, Calendar, Car, Bike, Search, Star } from 'lucide-react';
 import { supabase } from '../../../supabaseClient';
 import toast from 'react-hot-toast';
 import '../css/SearchTrips.css';
@@ -69,6 +69,56 @@ const SearchTrips = ({ onBack, onTripSelect, searchParams, session }) => {
 
             // Use the trips data directly from the RPC response
             const trips = data.data || [];
+
+            // Fetch extra driver data (photo & ratings)
+            if (trips.length > 0) {
+                try {
+                    const driverIds = [...new Set(trips.map(t => t.user_id || t.driver_id).filter(Boolean))];
+                    
+                    if (driverIds.length > 0) {
+                        const [{ data: profiles }, { data: driversResult }, { data: reviews }] = await Promise.all([
+                            supabase.from('profiles').select('id, full_name, avatar_url').in('id', driverIds),
+                            supabase.from('drivers').select('user_id, profile_photo_url').in('user_id', driverIds),
+                            supabase.from('reviews').select('target_id, rating').in('target_id', driverIds)
+                        ]);
+
+                        const ratingsMap = {};
+                        if (reviews) {
+                            reviews.forEach(review => {
+                                if (!ratingsMap[review.target_id]) {
+                                    ratingsMap[review.target_id] = { sum: 0, count: 0 };
+                                }
+                                ratingsMap[review.target_id].sum += review.rating;
+                                ratingsMap[review.target_id].count += 1;
+                            });
+                        }
+
+                        const driverInfoMap = {};
+                        driverIds.forEach(id => {
+                            const profile = profiles?.find(p => p.id === id);
+                            const driver = driversResult?.find(d => d.user_id === id);
+                            const ratingData = ratingsMap[id];
+                            
+                            driverInfoMap[id] = {
+                                fullName: profile?.full_name || 'Driver',
+                                avatar: driver?.profile_photo_url || profile?.avatar_url || null,
+                                rating: ratingData && ratingData.count > 0 ? (ratingData.sum / ratingData.count).toFixed(1) : "5.0",
+                                reviewCount: ratingData ? ratingData.count : 0
+                            };
+                        });
+
+                        trips.forEach(trip => {
+                            const dId = trip.user_id || trip.driver_id;
+                            if (dId && driverInfoMap[dId]) {
+                                trip.extended_driver_info = driverInfoMap[dId];
+                            }
+                        });
+                    }
+                } catch (e) {
+                    console.error('Failed to fetch extended driver info', e);
+                }
+            }
+
             setResults(trips);
 
             if (trips.length === 0) {
@@ -146,12 +196,29 @@ const SearchTrips = ({ onBack, onTripSelect, searchParams, session }) => {
                             >
                                 <div className="trip-card-header">
                                     <div className="driver-info">
-                                        <div className="driver-avatar">
-                                            {(trip.driver_name || 'D').charAt(0)}
+                                        <div className="driver-avatar" style={{ padding: trip.extended_driver_info?.avatar ? '0' : undefined, overflow: 'hidden' }}>
+                                            {trip.extended_driver_info?.avatar ? (
+                                                <img 
+                                                    src={trip.extended_driver_info.avatar} 
+                                                    alt="Driver" 
+                                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                                                />
+                                            ) : (
+                                                (trip.extended_driver_info?.fullName || trip.driver_name || 'D').charAt(0).toUpperCase()
+                                            )}
                                         </div>
-                                        <div>
-                                            <h3>{trip.driver_name || 'Driver'}</h3>
-                                            <span className="vehicle-type">
+                                        <div className="driver-header-details">
+                                            <h3>{trip.extended_driver_info?.fullName || trip.driver_name || 'Driver'}</h3>
+                                            
+                                            {trip.extended_driver_info?.rating && (
+                                                <div className="driver-rating" style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', marginBottom: '4px', fontSize: '13px', color: '#4B5563' }}>
+                                                    <Star size={14} fill="#EAB308" color="#EAB308" />
+                                                    <span style={{ fontWeight: '700', color: '#111827' }}>{trip.extended_driver_info.rating}</span>
+                                                    <span style={{ color: '#9CA3AF' }}>({trip.extended_driver_info.reviewCount})</span>
+                                                </div>
+                                            )}
+                                            
+                                            <span className="vehicle-type" style={{ marginTop: trip.extended_driver_info?.rating ? '0' : '4px' }}>
                                                 {trip.vehicle_type === 'car' ? <Car size={14} /> : <Bike size={14} />}
                                                 {trip.vehicle_type}
                                             </span>

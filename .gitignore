@@ -8,4 +8,20 @@ android/app/build/
 android/build/
 android/.gradle/
 android/local.properties
+android/.idea/
+android/app/release.keystore
 .cursor/
+
+# Temp/debug files
+checkDB*.js
+db_out.json
+drivers_out.json
+push_error.txt
+push_log.txt
+tmp_check_db.js
+syncWallet.js
+update_rpcs.sql
+admin/check_*.mjs
+admin/scan_db.mjs
+admin/seed_trip_data.mjs
+admin/test_query*.mjs

@@ -35,7 +35,7 @@ serve(async (req) => {
         }
 
         // 1. Fetch payment record safely
-        let paymentQuery = supabaseAdmin.from('ride_payments').select('id, payment_status, driver_id, passenger_id, trip_id').eq('driver_id', user.id)
+        let paymentQuery = supabaseAdmin.from('ride_payments').select('id, payment_status, driver_id, passenger_id, trip_id, commission_amount').eq('driver_id', user.id)
         if (payment_id) {
             paymentQuery = paymentQuery.eq('id', payment_id)
         } else {
@@ -91,6 +91,27 @@ serve(async (req) => {
             if (insertErr || !newPayment) throw new Error('Failed to create cash payment record: ' + insertErr?.message)
             
             paymentId = newPayment.id; // Just created and marked paid
+
+            // --> DEDUCT COMMISSION <--
+            try {
+                // Ensure driver record exists first
+                const { data: driverExists } = await supabaseAdmin.from('drivers').select('id').eq('user_id', user.id).maybeSingle();
+                if (!driverExists) {
+                    await supabaseAdmin.from('drivers').insert({ user_id: user.id, status: 'approved' });
+                }
+
+                const { data: rpcData, error: rpcErr } = await supabaseAdmin.rpc('deduct_commission_and_check_wallet', {
+                    p_driver_user_id: user.id,
+                    p_amount: commissionAmount,
+                    p_ride_id: booking.trip_id,
+                    p_description: 'Commission Deducted for Cash Trip (Verify Flow)'
+                });
+                if (rpcErr) console.error('Wallet deduction RPC error:', rpcErr);
+                else console.log('Commission deducted successfully:', rpcData);
+            } catch (err) {
+                console.error('Wallet deduction threw error:', err);
+            }
+
         } else if (!maybePayment) {
             throw new Error('Payment record not found')
         } else {
@@ -107,6 +128,29 @@ serve(async (req) => {
 
             if (updateError) throw updateError;
             paymentId = maybePayment.id;
+
+            // --> DEDUCT COMMISSION <--
+            const comAmount = Number(maybePayment.commission_amount || 0);
+            if (comAmount > 0) {
+                try {
+                    // Ensure driver record exists first
+                    const { data: driverExists } = await supabaseAdmin.from('drivers').select('id').eq('user_id', user.id).maybeSingle();
+                    if (!driverExists) {
+                        await supabaseAdmin.from('drivers').insert({ user_id: user.id, status: 'approved' });
+                    }
+
+                    const { data: rpcData, error: rpcErr } = await supabaseAdmin.rpc('deduct_commission_and_check_wallet', {
+                        p_driver_user_id: user.id,
+                        p_amount: comAmount,
+                        p_ride_id: maybePayment.trip_id,
+                        p_description: 'Commission Deducted for Cash Trip (Verify Flow)'
+                    });
+                    if (rpcErr) console.error('Wallet deduction RPC error:', rpcErr);
+                    else console.log('Commission deducted successfully:', rpcData);
+                } catch (err) {
+                    console.error('Wallet deduction threw error:', err);
+                }
+            }
         }
 
         // 3. (Optional) Broadcast to passenger that payment is received

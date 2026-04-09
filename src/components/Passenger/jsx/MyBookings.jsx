@@ -1,16 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Calendar, Clock, MapPin, User, AlertCircle, CheckCircle, XCircle, Loader } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, MapPin, User, AlertCircle, CheckCircle, XCircle, Loader, MessageSquare } from 'lucide-react';
 import { supabase } from '../../../supabaseClient';
 import toast from 'react-hot-toast';
 import { formatDate, formatTime, isTripToday, getTimeUntilTrip, isTripPast } from '../../../utils/dateHelper';
-
+import Chat from '../../common/Chat';
 import { getSafeSession } from '../../../utils/webViewHelper';
 import '../css/MyBookings.css';
+import '../css/MyBookingsChat.css';
 
 const MyBookings = ({ onBack, onViewDetails, onPaymentRequired }) => {
     const [bookings, setBookings] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('all'); // 'all', 'pending', 'approved', 'upcoming', 'completed'
+    const [chatTripId, setChatTripId] = useState(null);
+    const [chatBookingId, setChatBookingId] = useState(null);
+    const [currentUserId, setCurrentUserId] = useState(null);
 
     useEffect(() => {
         fetchBookings();
@@ -23,6 +27,7 @@ const MyBookings = ({ onBack, onViewDetails, onPaymentRequired }) => {
             const user = sessionData?.session?.user;
 
             if (!user) return;
+            setCurrentUserId(user.id);
 
             // Subscribe to booking updates (requires Realtime enabled on booking_requests table)
             channels.booking = supabase
@@ -402,9 +407,24 @@ const MyBookings = ({ onBack, onViewDetails, onPaymentRequired }) => {
                                             {/* Driver Info Card */}
                                             {booking.driver_details && (
                                                 <div className="driver-info-card" style={{ marginBottom: '1rem' }}>
-                                                    <div className="card-header">
-                                                        <User size={18} />
-                                                        <h3 style={{ margin: 0, fontSize: '0.9rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Driver Information</h3>
+                                                    <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                                                            <User size={18} />
+                                                            <h3 style={{ margin: 0, fontSize: '0.9rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Driver Information</h3>
+                                                        </div>
+                                                        {(booking.status === 'pending' || booking.status === 'approved') && (
+                                                            <button 
+                                                                className="mini-chat-btn"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setChatTripId(booking.trip_id);
+                                                                    setChatBookingId(booking.id);
+                                                                }}
+                                                                title="Chat with Driver"
+                                                            >
+                                                                <MessageSquare size={16} />
+                                                            </button>
+                                                        )}
                                                     </div>
                                                     <div className="driver-main">
                                                         <div className="avatar">
@@ -518,9 +538,24 @@ const MyBookings = ({ onBack, onViewDetails, onPaymentRequired }) => {
                                                         <Clock size={16} />
                                                         <span>{formatTime(booking.trips.travel_time)}</span>
                                                     </div>
-                                                    <div className="meta-item">
-                                                        <User size={16} />
-                                                        <span>{booking.driver_name}</span>
+                                                    <div className="meta-item" style={{ flexBasis: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                                                            <User size={16} />
+                                                            <span>{booking.driver_name}</span>
+                                                        </div>
+                                                        {(booking.status === 'pending' || booking.status === 'approved') && (
+                                                            <button 
+                                                                className="mini-chat-btn"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setChatTripId(booking.trip_id);
+                                                                    setChatBookingId(booking.id);
+                                                                }}
+                                                                title="Chat with Driver"
+                                                            >
+                                                                <MessageSquare size={16} />
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 </div>
 
@@ -571,6 +606,21 @@ const MyBookings = ({ onBack, onViewDetails, onPaymentRequired }) => {
                             ))}
                         </div>
                     )}
+                </div>
+            )}
+
+            {/* Chat Overlay */}
+            {chatTripId && (
+                <div className="chat-overlay-container">
+                    <Chat
+                        tripId={chatTripId}
+                        bookingId={chatBookingId}
+                        currentUserId={currentUserId}
+                        onBack={() => {
+                            setChatTripId(null);
+                            setChatBookingId(null);
+                        }}
+                    />
                 </div>
             )}
         </div>

@@ -117,9 +117,9 @@ serve(async (req) => {
         if (!payment) throw new Error('Could not resolve payment details')
         if (payment.payment_status === 'paid') throw new Error('Already paid')
 
-        const appId = Deno.env.get('CASHFREE_APP_ID') || ''
-        const secretKey = Deno.env.get('CASHFREE_SECRET_KEY') || ''
-        const env = Deno.env.get('CASHFREE_ENV') || 'PRODUCTION'
+        const appId = (Deno.env.get('CASHFREE_APP_ID') || '').trim()
+        const secretKey = (Deno.env.get('CASHFREE_SECRET_KEY') || '').trim()
+        const env = (Deno.env.get('CASHFREE_ENV') || 'PRODUCTION').trim()
 
         if (!appId || !secretKey) {
             // Stub mode if keys are missing
@@ -139,8 +139,9 @@ serve(async (req) => {
             ? 'https://api.cashfree.com/pg'
             : 'https://sandbox.cashfree.com/pg'
 
-        // If order exists, fetch existing session if not expired, or create new
-        const orderId = payment.cashfree_order_id || `order_${String(finalPaymentId).replace(/-/g, '').substring(0, 16)}_${Date.now()}`
+        // Always create a fresh order ID to avoid "order with same id is already present" error
+        // if a previous payment attempt was abandoned.
+        const orderId = `order_${String(finalPaymentId).replace(/-/g, '').substring(0, 16)}_${Date.now()}`
 
         // Fetch passenger info from profiles separately to avoid FK join issues
         const { data: profile } = await supabaseAdmin
@@ -194,13 +195,11 @@ serve(async (req) => {
             throw new Error(cashfreeData.message || 'Payment gateway error')
         }
 
-        // Save order_id in DB
-        if (!payment.cashfree_order_id) {
-            await supabaseAdmin
-                .from('ride_payments')
-                .update({ cashfree_order_id: orderId })
-                .eq('id', finalPaymentId)
-        }
+        // Save new order_id in DB (overwrite old if exists)
+        await supabaseAdmin
+            .from('ride_payments')
+            .update({ cashfree_order_id: orderId })
+            .eq('id', finalPaymentId)
 
         return new Response(
             JSON.stringify({

@@ -13,8 +13,8 @@ const supabaseOptions = {
         persistSession: true,
         // Enable auto-refresh (but with careful handling)
         autoRefreshToken: true,
-        // Don't detect session in URL (not needed for mobile apps)
-        detectSessionInUrl: false,
+        // Enable detecting session back from url (needed for deep linkage)
+        detectSessionInUrl: true,
         // Use custom storage adapter that works in WebView
         storage: getStorageAdapter(),
         // Custom storage key for Xpool app

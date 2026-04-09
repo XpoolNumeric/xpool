@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import { initializeMap, createRoute, addMarker, getCurrentLocation } from '../../../utils/googleMapsHelper';
 import { formatDate, formatTime, isTripToday } from '../../../utils/dateHelper';
 import { getOTPForTrip } from '../../../utils/otpHelper';
-import RatingModal from './RatingModal';
+import UnifiedRatingModal from '../../common/jsx/UnifiedRatingModal';
 import Chat from '../../common/Chat';
 import { liveTrackingService } from '../../../services/tracking/LiveTrackingService';
 import '../css/PassengerRideDetails.css';
@@ -496,7 +496,7 @@ const PassengerRideDetails = ({ booking, onBack, onPaymentRequired }) => {
             {showChat && (
                 <div className="chat-overlay-container">
                     <Chat
-                        tripId={trip.id}
+                        tripId={booking?.trip_id || trip?.id}
                         currentUserId={currentUserId}
                         onBack={() => setShowChat(false)}
                     />
@@ -504,8 +504,12 @@ const PassengerRideDetails = ({ booking, onBack, onPaymentRequired }) => {
             )}
 
             {showRating && (
-                <RatingModal
-                    ride={{ ...trip, driver_name: driver.name }}
+                <UnifiedRatingModal
+                    targetUser={{
+                        id: trip.user_id,
+                        name: driver?.name || 'Driver'
+                    }}
+                    tripId={trip.id}
                     onClose={() => setShowRating(false)}
                     onFinish={() => {
                         setShowRating(false);
