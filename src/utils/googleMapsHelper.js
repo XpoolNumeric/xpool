@@ -109,17 +109,12 @@ export const createRoute = async (map, origin, destination, waypoints = []) => {
         map,
         suppressMarkers: true,
         polylineOptions: {
-<<<<<<< HEAD
-            strokeColor: '#FFD700',
-            strokeWeight: 6,
-=======
             strokeColor: '#f59e0b',
             strokeWeight: 6,
             strokeOpacity: 1,
             strokeLineCap: 'round',
             strokeLineJoin: 'round',
             zIndex: 50
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
         },
     });
 

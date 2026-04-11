@@ -103,11 +103,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
                 initial="hidden"
                 animate={isOpen ? "visible" : "hidden"}
                 className={cn(
-<<<<<<< HEAD
-                    "fixed top-16 left-0 bottom-0 z-[55] w-64 lg:w-72 flex flex-col pt-6 pb-6 px-4",
-=======
                     "fixed top-16 left-0 bottom-0 z-[65] w-64 lg:w-72 flex flex-col pt-6 pb-6 px-4",
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                     "bg-white/95 backdrop-blur-xl border-r border-gray-100/60 shadow-xl md:shadow-none",
                     !isOpen && "hidden"
                 )}

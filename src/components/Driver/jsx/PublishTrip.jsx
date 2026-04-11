@@ -47,19 +47,11 @@ const PublishTrip = ({ onBack, onSuccess, onLogout }) => {
         fetchDriverInfo();
     }, []);
 
-<<<<<<< HEAD
-    // Auto-calculate fare ONLY when locations change (debounced)
-=======
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
     useEffect(() => {
         if (formData.fromLocation.trim() && formData.toLocation.trim()) {
             const timer = setTimeout(() => {
                 calculateFare(formData.fromLocation, formData.toLocation, formData.vehicleType, formData.availableSeats);
             }, 1000);
-<<<<<<< HEAD
-
-=======
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
             return () => clearTimeout(timer);
         }
     }, [formData.fromLocation, formData.toLocation]);
@@ -84,39 +76,6 @@ const PublishTrip = ({ onBack, onSuccess, onLogout }) => {
         vehicle = formData.vehicleType,
         seats = formData.availableSeats
     ) => {
-<<<<<<< HEAD
-        if (!from.trim() || !to.trim()) {
-            return;
-        }
-
-        setCalculating(true);
-        try {
-            // Calculate fare for current passenger count
-            const fare = await PricingService.calculateFareFromAddresses(
-                from,
-                to,
-                vehicle,
-                seats
-            );
-
-            setFareDetails(fare);
-
-            // Get breakdown for different passenger counts
-            const breakdownData = await PricingService.getFareBreakdown(
-                from,
-                to,
-                vehicle
-            );
-
-            setFareBreakdown(breakdownData.breakdowns);
-
-            // Auto-fill price with newly calculated fare
-            if (fare.perPersonFare) {
-                setFormData(prev => ({
-                    ...prev,
-                    pricePerSeat: fare.perPersonFare.toString()
-                }));
-=======
         if (!from.trim() || !to.trim()) return;
         setCalculating(true);
         try {
@@ -126,7 +85,6 @@ const PublishTrip = ({ onBack, onSuccess, onLogout }) => {
             setFareBreakdown(breakdownData.breakdowns);
             if (fare.perPersonFare) {
                 setFormData(prev => ({ ...prev, pricePerSeat: fare.perPersonFare.toString() }));
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
             }
             if (fare.routeInfo) {
                 setRoutePreview({
@@ -138,13 +96,7 @@ const PublishTrip = ({ onBack, onSuccess, onLogout }) => {
             toast.success('Fare calculated!', { icon: '✅', duration: 2500 });
         } catch (error) {
             console.error('Error calculating fare:', error);
-<<<<<<< HEAD
-            toast.error('Could not calculate fare automatically.', {
-                duration: 4000
-            });
-=======
             toast.error('Could not calculate fare automatically.', { duration: 4000 });
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
         } finally {
             setCalculating(false);
         }
@@ -157,16 +109,7 @@ const PublishTrip = ({ onBack, onSuccess, onLogout }) => {
 
     const handleVehicleChange = (type) => {
         const newSeats = type === 'bike' ? 1 : 3;
-<<<<<<< HEAD
-        setFormData(prev => ({
-            ...prev,
-            vehicleType: type,
-            availableSeats: newSeats
-        }));
-
-=======
         setFormData(prev => ({ ...prev, vehicleType: type, availableSeats: newSeats }));
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
         if (formData.fromLocation && formData.toLocation) {
             calculateFare(formData.fromLocation, formData.toLocation, type, newSeats);
         }
@@ -264,22 +207,9 @@ const PublishTrip = ({ onBack, onSuccess, onLogout }) => {
         }
     };
 
-<<<<<<< HEAD
-    const handleSeatChange = (seats) => {
-        setFormData(prev => ({
-            ...prev,
-            availableSeats: seats
-        }));
-
-        // Recalculate fare immediately with new passenger count
-        if (formData.fromLocation && formData.toLocation) {
-            calculateFare(formData.fromLocation, formData.toLocation, formData.vehicleType, seats);
-        }
-=======
     const formatDate = (dateStr) => {
         if (!dateStr) return '';
         return new Date(dateStr).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' });
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
     };
 
     const renderStepContent = () => {
@@ -385,259 +315,6 @@ const PublishTrip = ({ onBack, onSuccess, onLogout }) => {
                     </button>
                 )}
             </div>
-<<<<<<< HEAD
-
-            {/* Form */}
-            <form className="publish-form" onSubmit={handleSubmit}>
-                {/* Vehicle Type Selection */}
-                <div className="form-section">
-                    <label className="section-label">Vehicle Type</label>
-                    <div className="vehicle-options">
-                        <button
-                            type="button"
-                            className={`vehicle-option ${formData.vehicleType === 'car' ? 'active' : ''}`}
-                            onClick={() => handleVehicleChange('car')}
-                        >
-                            <div className="option-icon">
-                                <Car size={28} />
-                            </div>
-                            <span>Car</span>
-                            {formData.vehicleType === 'car' && (
-                                <div className="check-badge"><Check size={14} /></div>
-                            )}
-                        </button>
-                        <button
-                            type="button"
-                            className={`vehicle-option ${formData.vehicleType === 'bike' ? 'active' : ''}`}
-                            onClick={() => handleVehicleChange('bike')}
-                        >
-                            <div className="option-icon">
-                                <Bike size={28} />
-                            </div>
-                            <span>Bike</span>
-                            {formData.vehicleType === 'bike' && (
-                                <div className="check-badge"><Check size={14} /></div>
-                            )}
-                        </button>
-                    </div>
-                </div>
-
-                {/* Number of Seats */}
-                <div className="form-section">
-                    <label className="section-label">
-                        <Users size={18} />
-                        Available Seats
-                    </label>
-                    {formData.vehicleType === 'bike' ? (
-                        <div className="seats-display">
-                            <span className="seat-number">1</span>
-                            <span className="seat-label">seat (Bike pillion only)</span>
-                        </div>
-                    ) : (
-                        <div className="seats-selector">
-                            {[1, 2, 3, 4].map(num => (
-                                <button
-                                    key={num}
-                                    type="button"
-                                    className={`seat-btn ${formData.availableSeats === num ? 'active' : ''}`}
-                                    onClick={() => handleSeatChange(num)}
-                                >
-                                    {num}
-                                </button>
-                            ))}
-                        </div>
-                    )}
-                </div>
-
-                {/* Fare Calculation Display */}
-                {renderFareDetails()}
-
-                {/* Preferences */}
-                <div className="form-section">
-                    <label className="section-label">Preferences</label>
-                    <div className="preferences-grid">
-                        <button
-                            type="button"
-                            className={`pref-chip ${formData.ladiesOnly ? 'active' : ''}`}
-                            onClick={() => togglePreference('ladiesOnly')}
-                        >
-                            👩 Ladies Only
-                        </button>
-                        <button
-                            type="button"
-                            className={`pref-chip ${formData.noSmoking ? 'active' : ''}`}
-                            onClick={() => togglePreference('noSmoking')}
-                        >
-                            🚭 No Smoking
-                        </button>
-                        <button
-                            type="button"
-                            className={`pref-chip ${formData.petFriendly ? 'active' : ''}`}
-                            onClick={() => togglePreference('petFriendly')}
-                        >
-                            🐾 Pet Friendly
-                        </button>
-                    </div>
-                </div>
-
-                {/* From Location */}
-                <div className="form-section">
-                    <label className="section-label">
-                        <MapPin size={18} />
-                        From (Pickup Location)
-                    </label>
-                    <LocationInput
-                        name="fromLocation"
-                        placeholder="Enter pickup address"
-                        value={formData.fromLocation}
-                        onChange={handleChange}
-                        className="form-input"
-                        onPlaceSelected={(place) => {
-                            setFormData(prev => ({
-                                ...prev,
-                                fromLocation: place.formatted_address || place.name
-                            }));
-                        }}
-                    />
-                </div>
-
-                {/* To Location */}
-                <div className="form-section">
-                    <label className="section-label">
-                        <MapPin size={18} className="destination-icon" />
-                        To (Destination)
-                    </label>
-                    <LocationInput
-                        name="toLocation"
-                        placeholder="Enter destination address"
-                        value={formData.toLocation}
-                        onChange={handleChange}
-                        className="form-input"
-                        onPlaceSelected={(place) => {
-                            setFormData(prev => ({
-                                ...prev,
-                                toLocation: place.formatted_address || place.name
-                            }));
-                        }}
-                    />
-                </div>
-
-                {/* Date & Time Row */}
-                <div className="form-row">
-                    <div className="form-section half">
-                        <label className="section-label">
-                            <Calendar size={18} />
-                            Travel Date
-                        </label>
-                        <input
-                            type="date"
-                            name="travelDate"
-                            className="form-input"
-                            value={formData.travelDate}
-                            onChange={handleChange}
-                            min={minDate}
-                        />
-                    </div>
-                    <div className="form-section half">
-                        <label className="section-label">
-                            <Clock size={18} />
-                            Departure Time
-                        </label>
-                        <input
-                            type="time"
-                            name="travelTime"
-                            className="form-input"
-                            value={formData.travelTime}
-                            onChange={handleChange}
-                        />
-                    </div>
-                </div>
-
-                {/* Recurring Option */}
-                <div className="form-section checkbox-section">
-                    <label className="checkbox-label">
-                        <input
-                            type="checkbox"
-                            checked={formData.isRecurring}
-                            onChange={(e) => setFormData(prev => ({ ...prev, isRecurring: e.target.checked }))}
-                        />
-                        <span>Repeat for next 5 days</span>
-                    </label>
-                </div>
-
-                {/* Price per Seat */}
-                <div className="form-section">
-                    <label className="section-label">
-                        <IndianRupee size={18} />
-                        Price per Seat
-                        <button
-                            type="button"
-                            className="calculate-btn"
-                            onClick={calculateFare}
-                            disabled={calculating || !formData.fromLocation || !formData.toLocation}
-                        >
-                            {calculating ? (
-                                <>
-                                    <Loader size={14} className="spin" />
-                                    Calculating
-                                </>
-                            ) : 'Calculate'}
-                        </button>
-                    </label>
-                    <div className="price-input-wrapper">
-                        <span className="currency-symbol">₹</span>
-                        <input
-                            type="number"
-                            name="pricePerSeat"
-                            className="form-input price-input readonly-input"
-                            placeholder="Calculated automatically"
-                            value={formData.pricePerSeat}
-                            readOnly
-                        />
-                    </div>
-
-                    {/* Price comparison */}
-                    {fareDetails && formData.pricePerSeat && (
-                        <div className="price-comparison">
-                            {parseFloat(formData.pricePerSeat) > fareDetails.perPersonFare ? (
-                                <span className="price-higher">
-                                    ₹{parseFloat(formData.pricePerSeat) - fareDetails.perPersonFare} higher than calculated
-                                </span>
-                            ) : parseFloat(formData.pricePerSeat) < fareDetails.perPersonFare ? (
-                                <span className="price-lower">
-                                    ₹{fareDetails.perPersonFare - parseFloat(formData.pricePerSeat)} lower than calculated
-                                </span>
-                            ) : (
-                                <span className="price-match">✓ Matches calculated price</span>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Help text */}
-                    {!formData.pricePerSeat && (
-                        <div className="price-help">
-                            <AlertCircle size={14} />
-                            <span>Price is calculated automatically based on distance and vehicle type</span>
-                        </div>
-                    )}
-                </div>
-
-                {/* Submit Button */}
-                <button
-                    type="submit"
-                    className="submit-btn"
-                    disabled={loading || calculating}
-                >
-                    {loading ? (
-                        <>
-                            <Loader size={18} className="spin" />
-                            Publishing...
-                        </>
-                    ) : 'Publish Trip'}
-                </button>
-            </form>
-=======
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
         </div>
     );
 };

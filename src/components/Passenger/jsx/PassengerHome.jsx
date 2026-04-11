@@ -1,12 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-<<<<<<< HEAD
-import { Map, AdvancedMarker, useMap } from '@vis.gl/react-google-maps';
-import { MapPin, Navigation, Search, Menu, User, BookOpen, Clock as HistoryIcon, CreditCard, ChevronRight, Calendar, Car, Bike, Phone, Bell, Wallet, X, CheckCheck } from 'lucide-react';
-=======
 import { Map, Marker, useMap } from '@vis.gl/react-google-maps';
 import { MapPin, Navigation, Search, Menu, User, BookOpen, Clock as HistoryIcon, CreditCard, ChevronRight, ChevronDown, Calendar, Car, Bike, Phone, Bell, Wallet, X, CheckCheck, Home, Zap, Shield, Download, Mail, HelpCircle, MessageCircle, ArrowRight, ExternalLink, ArrowLeft, LocateFixed, ArrowUpDown, CheckCircle2, XCircle, Flag, Key } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
 import toast from 'react-hot-toast';
 import { supabase } from '../../../supabaseClient';
 import { getCurrentLocation } from '../../../utils/googleMapsHelper';
@@ -257,17 +252,10 @@ const PassengerHome = ({ onBack, onSearchTrips, onNavigate, onLogout, session, i
     const [isSupportOpen, setIsSupportOpen] = useState(false);
     const [expandedFaq, setExpandedFaq] = useState(null);
     const [activeNotification, setActiveNotification] = useState(null);
-<<<<<<< HEAD
-    const [isNotifOpen, setIsNotifOpen] = useState(false);
-    const [notifList, setNotifList] = useState([]);
-    const [unreadCount, setUnreadCount] = useState(0);
-    const [notifLoading, setNotifLoading] = useState(false);
-=======
     const [notifList, setNotifList] = useState([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [notifLoading, setNotifLoading] = useState(false);
     const [isLocating, setIsLocating] = useState(false);
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
 
     // NEW STATES FOR DATA FETCHING
     const [passengerName, setPassengerName] = useState('Passenger');
@@ -598,11 +586,7 @@ const PassengerHome = ({ onBack, onSearchTrips, onNavigate, onLogout, session, i
         };
     }, [currentUserId]);
 
-<<<<<<< HEAD
-    // ── Notification Fetch & Real-time ──
-=======
     // â”€â”€ Notification Fetch & Real-time â”€â”€
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
     const fetchNotifications = useCallback(async () => {
         if (!currentUserId) return;
         setNotifLoading(true);
@@ -836,8 +820,6 @@ const PassengerHome = ({ onBack, onSearchTrips, onNavigate, onLogout, session, i
 
     return (
         <div className="passenger-home-container">
-<<<<<<< HEAD
-=======
             {/* Map Background Layer (Full Screen behind cards) */}
             <div className="map-layer">
 
@@ -885,7 +867,6 @@ const PassengerHome = ({ onBack, onSearchTrips, onNavigate, onLogout, session, i
 
             {/* Overlaid UI Container */}
             <div className={`overlaid-ui-layer ${isSearchOverlayActive ? 'hidden-search-overlay' : ''}`}>
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                 {/* Active Notification Banner */}
                 <AnimatePresence>
                     {activeNotification && (
@@ -908,131 +889,10 @@ const PassengerHome = ({ onBack, onSearchTrips, onNavigate, onLogout, session, i
                     )}
                 </AnimatePresence>
 
-<<<<<<< HEAD
-                {/* Sidebar Menu with Passenger Data */}
-                <div className={`side-menu ${isMenuOpen ? 'open' : ''}`}>
-                    <div className="menu-header">
-                        <User size={40} className="user-icon" />
-                        <div className="user-info">
-                            <h3>{passengerName}</h3>
-                            <p>Passenger</p>
-                        </div>
-                    </div>
-
-                    {/* Stats Section in Menu */}
-                    <div className="menu-stats">
-                        <div className="stat-item">
-                            <div className="stat-value">{stats.upcomingTrips}</div>
-                            <div className="stat-label">Upcoming</div>
-                        </div>
-                        <div className="stat-item">
-                            <div className="stat-value">{stats.pendingBookings}</div>
-                            <div className="stat-label">Pending</div>
-                        </div>
-                        <div className="stat-item">
-                            <div className="stat-value">{stats.completedTrips}</div>
-                            <div className="stat-label">Completed</div>
-                        </div>
-                    </div>
-
-                    <div className="menu-items">
-                        <button onClick={() => handleMenuClick('passengerProfile')}>
-                            <User size={20} />
-                            <span>My Profile</span>
-                            <ChevronRight size={16} />
-                        </button>
-                        <button onClick={() => handleMenuClick('myBookings')}>
-                            <BookOpen size={20} />
-                            <span>My Bookings</span>
-                            {stats.pendingBookings > 0 && (
-                                <span className="menu-badge">{stats.pendingBookings}</span>
-                            )}
-                            <ChevronRight size={16} />
-                        </button>
-                        <button onClick={() => handleMenuClick('passengerWallet')}>
-                            <Wallet size={20} />
-                            <span>Wallet</span>
-                            <ChevronRight size={16} />
-                        </button>
-                    </div>
-                    <div className="menu-footer">
-                        <button
-                            className="logout-btn"
-                            onClick={() => handleMenuClick('logout')}
-                        >
-                            Logout
-                        </button>
-                    </div>
-                </div>
-
-                {/* Overlay */}
-                {isMenuOpen && <div className="menu-overlay" onClick={toggleMenu}></div>}
-
-                {/* Notification Panel */}
-                {isNotifOpen && <div className="menu-overlay notif-overlay" onClick={toggleNotifPanel}></div>}
-                <div className={`notif-panel ${isNotifOpen ? 'open' : ''}`}>
-                    <div className="notif-panel-header">
-                        <h3>Notifications</h3>
-                        <div className="notif-header-actions">
-                            {unreadCount > 0 && (
-                                <button className="mark-all-read-btn" onClick={handleMarkAllRead}>
-                                    <CheckCheck size={16} />
-                                    Mark all read
-                                </button>
-                            )}
-                            <button className="notif-close-btn" onClick={toggleNotifPanel}>
-                                <X size={20} />
-                            </button>
-                        </div>
-                    </div>
-                    <div className="notif-panel-body">
-                        {notifLoading ? (
-                            <div className="notif-loading">
-                                <div className="spinner"></div>
-                                <p>Loading...</p>
-                            </div>
-                        ) : notifList.length === 0 ? (
-                            <div className="notif-empty">
-                                <Bell size={40} />
-                                <h4>No notifications</h4>
-                                <p>You'll see updates from drivers and ride status here</p>
-                            </div>
-                        ) : (
-                            notifList.map(notif => (
-                                <div
-                                    key={notif.id}
-                                    className={`notif-item ${!notif.read ? 'unread' : ''}`}
-                                    onClick={() => handleNotifClick(notif)}
-                                >
-                                    <div className="notif-item-icon">
-                                        {notif.type === 'booking_approved' ? '✅' :
-                                         notif.type === 'booking_rejected' ? '❌' :
-                                         notif.type === 'ride_started' ? '🚗' :
-                                         notif.type === 'ride_completed' ? '🏁' :
-                                         notif.type === 'payment' ? '💰' : '🔔'}
-                                    </div>
-                                    <div className="notif-item-content">
-                                        <div className="notif-item-title">{notif.title}</div>
-                                        <div className="notif-item-message">{notif.message}</div>
-                                        <div className="notif-item-time">{formatNotifTime(notif.created_at)}</div>
-                                    </div>
-                                    {!notif.read && <div className="notif-unread-dot"></div>}
-                                </div>
-                            ))
-                        )}
-                    </div>
-                </div>
-
-                {/* Header with Notification Bell */}
-                <div className="yellow-header">
-                    <div className="header-content">
-                        <button className="menu-btn" onClick={toggleMenu}>
-=======
                 {/* Top Glass Header */}
                 <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="glass-header">
                     <div className="glass-header-content">
                         <button className="glass-menu-btn" onClick={toggleMenu}>
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                             <Menu size={24} />
                         </button>
                         <div className="glass-header-text" style={{ textAlign: 'center', display: 'flex', flexDirection: 'column' }}>
@@ -1042,17 +902,9 @@ const PassengerHome = ({ onBack, onSearchTrips, onNavigate, onLogout, session, i
                                 <span style={{ color: '#1a0800' }}>pool</span>
                             </h2>
                         </div>
-<<<<<<< HEAD
-                        <button className="notification-menu-btn" onClick={toggleNotifPanel}>
-                            <Bell size={22} />
-                            {unreadCount > 0 && (
-                                <span className="notification-dot">{unreadCount > 9 ? '9+' : unreadCount}</span>
-                            )}
-=======
                         <button className="glass-notification-btn" onClick={toggleNotifPanel}>
                             <Bell size={22} />
                             {unreadCount > 0 && <span className="notification-dot">{unreadCount > 9 ? '9+' : unreadCount}</span>}
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                         </button>
                     </div>
                 </motion.div>
@@ -1313,8 +1165,6 @@ const PassengerHome = ({ onBack, onSearchTrips, onNavigate, onLogout, session, i
                     </button>
                 </div>
             </div>
-<<<<<<< HEAD
-=======
 
             {isMenuOpen && <div className="menu-overlay" onClick={toggleMenu}></div>}
 
@@ -1556,7 +1406,6 @@ const PassengerHome = ({ onBack, onSearchTrips, onNavigate, onLogout, session, i
                 )}
             </AnimatePresence>
         </div>
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
     );
 };
 

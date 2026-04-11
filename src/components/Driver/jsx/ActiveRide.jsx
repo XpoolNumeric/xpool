@@ -174,20 +174,8 @@ const ActiveRide = ({ trip: initialTrip, onBack }) => {
             const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
             if (!apiKey) return;
 
-            // Wait for script (already loading via App.jsx Provider)
             await loadGoogleMapsScript(apiKey);
             
-<<<<<<< HEAD
-            // Double check container exists
-            const container = document.getElementById('active-ride-map');
-            if (!container) return;
-
-            // Clear any existing content in the container to prevent double map UI
-            container.innerHTML = '';
-
-            const currentLocation = await getCurrentLocation();
-            const map = initializeMap('active-ride-map', currentLocation, 14);
-=======
             const container = document.getElementById('active-ride-map');
             if (!container) return;
 
@@ -195,7 +183,6 @@ const ActiveRide = ({ trip: initialTrip, onBack }) => {
 
             // Start with a neutral India-wide view
             const map = initializeMap('active-ride-map', { lat: 20.5937, lng: 78.9629 }, 6);
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
             mapInstanceRef.current = map;
 
             const route = await createRoute(
@@ -792,10 +779,6 @@ const ActiveRide = ({ trip: initialTrip, onBack }) => {
                         <div className="modal-actions" style={{ flexDirection: 'column', gap: '12px' }}>
                             <button
                                 className="modal-btn confirm"
-<<<<<<< HEAD
-                                style={{ width: '100%', display: 'flex', justifyContent: 'center', gap: '8px' }}
-=======
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                                 onClick={() => {
                                     setDropOptionsVisible(false);
                                     checkOnlinePaymentAndDrop(dropTarget);
@@ -807,10 +790,6 @@ const ActiveRide = ({ trip: initialTrip, onBack }) => {
                             </button>
                             <button
                                 className="modal-btn cash"
-<<<<<<< HEAD
-                                style={{ width: '100%', display: 'flex', justifyContent: 'center', gap: '8px', background: '#f59e0b', color: '#fff', border: 'none', padding: '12px', borderRadius: '8px', fontWeight: '500' }}
-=======
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                                 onClick={() => {
                                     setDropOptionsVisible(false);
                                     setCashConfirmVisible(true);
@@ -822,10 +801,6 @@ const ActiveRide = ({ trip: initialTrip, onBack }) => {
                             </button>
                             <button
                                 className="modal-btn cancel"
-<<<<<<< HEAD
-                                style={{ width: '100%', marginTop: '4px' }}
-=======
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                                 onClick={() => { setDropOptionsVisible(false); setDropTarget(null); }}
                             >
                                 Cancel Drop

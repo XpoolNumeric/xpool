@@ -128,11 +128,7 @@ function PendingDrivers() {
         hidden: { opacity: 0 },
         visible: { opacity: 1, transition: { staggerChildren: 0.05 } }
     };
-<<<<<<< HEAD
-
-=======
     
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
     const itemVariants = {
         hidden: { opacity: 0, scale: 0.98, y: 10 },
         visible: { opacity: 1, scale: 1, y: 0, transition: { duration: 0.3, ease: [0.22, 1, 0.36, 1] } }
@@ -142,20 +138,12 @@ function PendingDrivers() {
         <div className="dashboard-container inter-font bg-gray-50/50" style={{ minHeight: '100vh', position: 'relative', background: "linear-gradient(160deg, #fffbeb 0%, #fef9e7 45%, #fffdf5 100%)" }}>
             <GlobalStyles />
             <PulseBackground />
-<<<<<<< HEAD
-
-=======
             
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
             <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
 
             <div className={`dashboard-content-wrapper relative z-10 h-full transition-all duration-300 pt-16 pb-10 ${sidebarOpen ? 'md:ml-64 lg:ml-72' : 'ml-0'}`}>
                 <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 w-full">
-<<<<<<< HEAD
-
-=======
                     
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                     <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
                         <div>
                             <div className="inline-flex flex-col mb-2">
@@ -165,11 +153,7 @@ function PendingDrivers() {
                                 <div className="h-1.5 w-1/3 bg-amber-500 rounded-full mt-2 shadow-sm" />
                             </div>
                             <p className="text-gray-500 font-medium max-w-lg">
-<<<<<<< HEAD
-                                Securely verify and manage driver applications.
-=======
                                 Securely verify and manage driver applications. 
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                                 <span className="hidden sm:inline"> System syncs automatically every 10 seconds.</span>
                             </p>
                         </div>
@@ -211,11 +195,7 @@ function PendingDrivers() {
                             <p className="text-gray-400 font-bold text-sm uppercase tracking-widest animate-pulse">Initializing Data...</p>
                         </div>
                     ) : drivers.length === 0 ? (
-<<<<<<< HEAD
-                        <motion.div
-=======
                         <motion.div 
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                             initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
                             className="glass-card flex flex-col items-center justify-center p-20 text-center rounded-[3rem] border-2 border-dashed border-emerald-100"
                         >
@@ -228,11 +208,7 @@ function PendingDrivers() {
                             </p>
                         </motion.div>
                     ) : (
-<<<<<<< HEAD
-                        <motion.div
-=======
                         <motion.div 
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                             variants={containerVariants}
                             initial="hidden"
                             animate="visible"
@@ -240,11 +216,7 @@ function PendingDrivers() {
                         >
                             <AnimatePresence mode='popLayout'>
                                 {drivers.map(driver => (
-<<<<<<< HEAD
-                                    <motion.div
-=======
                                     <motion.div 
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                                         key={driver.id}
                                         variants={itemVariants}
                                         layout
@@ -252,11 +224,7 @@ function PendingDrivers() {
                                         className="glass-card glass-card-hover rounded-[2.5rem] p-6 cursor-pointer relative overflow-hidden group border border-white/50"
                                     >
                                         <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-amber-100/40 to-transparent rounded-bl-full -mr-20 -mt-20 transition-all group-hover:scale-110 pointer-events-none" />
-<<<<<<< HEAD
-
-=======
                                         
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                                         <div className="flex flex-col gap-5 relative z-10">
                                             <div className="flex justify-between items-start">
                                                 <div className="w-14 h-14 bg-white rounded-2xl shadow-md border border-gray-100 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">

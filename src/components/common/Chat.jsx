@@ -63,11 +63,7 @@ const Chat = ({ tripId, bookingId, onBack, currentUserId }) => {
                 .select('user_id')
                 .eq('id', tripId)
                 .single();
-<<<<<<< HEAD
-                
-=======
 
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
             if (tripData) {
                 setDriverId(tripData.user_id);
             }
@@ -77,14 +73,6 @@ const Chat = ({ tripId, bookingId, onBack, currentUserId }) => {
                 .from('messages')
                 .select('*')
                 .order('created_at', { ascending: true });
-                
-            if (bookingId) {
-                query = query.eq('booking_id', bookingId);
-            } else if (tripId) {
-                query = query.eq('trip_id', tripId);
-            }
-
-            const { data: msgs, error } = await query;
 
             if (bookingId) {
                 query = query.eq('booking_id', bookingId);
@@ -95,21 +83,13 @@ const Chat = ({ tripId, bookingId, onBack, currentUserId }) => {
             const { data: msgs, error } = await query;
 
             if (error) throw error;
-<<<<<<< HEAD
-            
-=======
 
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
             // Fetch profiles for sender names
             if (msgs && msgs.length > 0) {
                 const uniqueSenderIds = [...new Set(msgs.map(m => m.sender_id))];
                 await fetchProfiles(uniqueSenderIds);
             }
-<<<<<<< HEAD
-            
-=======
 
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
             setMessages(msgs || []);
         } catch (error) {
             console.error('Error fetching chat data:', error);
@@ -121,21 +101,13 @@ const Chat = ({ tripId, bookingId, onBack, currentUserId }) => {
 
     const fetchProfiles = async (userIds) => {
         if (!userIds || userIds.length === 0) return;
-<<<<<<< HEAD
-        
-=======
 
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
         try {
             const { data } = await supabase
                 .from('profiles')
                 .select('id, full_name')
                 .in('id', userIds);
-<<<<<<< HEAD
-                
-=======
 
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
             if (data) {
                 setSenderProfiles(prev => {
                     const newProfiles = { ...prev };
@@ -167,10 +139,6 @@ const Chat = ({ tripId, bookingId, onBack, currentUserId }) => {
             sender_id: currentUserId,
             content: newMessage.trim()
         };
-        
-        if (bookingId) {
-            messageData.booking_id = bookingId;
-        }
 
         if (bookingId) {
             messageData.booking_id = bookingId;
@@ -271,12 +239,6 @@ const Chat = ({ tripId, bookingId, onBack, currentUserId }) => {
 
             <div className="messages-list">
                 {loading ? (
-<<<<<<< HEAD
-                    <div className="loading-spinner">Loading...</div>
-                ) : messages.length === 0 ? (
-                    <div className="empty-chat">
-                        <p>No messages yet. Send the first message!</p>
-=======
                     <div className="loading-spinner">Loading messages...</div>
                 ) : messages.length === 0 ? (
                     <div className="empty-chat">
@@ -287,7 +249,6 @@ const Chat = ({ tripId, bookingId, onBack, currentUserId }) => {
                             <p style={{ fontWeight: '700', color: '#1e293b', marginBottom: '0.25rem', fontSize: '1.1rem' }}>No messages yet</p>
                             <p style={{ margin: 0 }}>Send a message to start the conversation!</p>
                         </div>
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                     </div>
                 ) : (
                     messages.map((msg) => {
@@ -295,11 +256,7 @@ const Chat = ({ tripId, bookingId, onBack, currentUserId }) => {
                         const isDriver = msg.sender_id === driverId;
                         const senderName = isMine ? 'You' : (senderProfiles[msg.sender_id] || 'User');
                         const role = isDriver ? 'Driver' : 'Passenger';
-<<<<<<< HEAD
-                        
-=======
 
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                         return (
                             <div
                                 key={msg.id}
@@ -308,11 +265,7 @@ const Chat = ({ tripId, bookingId, onBack, currentUserId }) => {
                                 {!isMine && (
                                     <div className="msg-sender-info">
                                         <span className="msg-name">{senderName}</span>
-<<<<<<< HEAD
-                                        <span className={`msg-role ${isDriver ? 'role-driver' : 'role-passenger'}`}>• {role}</span>
-=======
                                         <span className={`msg-role ${isDriver ? 'role-driver' : 'role-passenger'}`}>{role}</span>
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                                     </div>
                                 )}
                                 <div className="message-content">

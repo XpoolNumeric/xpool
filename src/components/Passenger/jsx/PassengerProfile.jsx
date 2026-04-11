@@ -1,13 +1,9 @@
 import React, { useState, useEffect } from 'react';
-<<<<<<< HEAD
-import { ArrowLeft, User, Mail, Phone, Camera, Edit2, Save, X, Calendar, Star, Wallet, Clock, MapPin, Shield, Award } from 'lucide-react';
-=======
 import { 
     ArrowLeft, User, Mail, Phone, Camera, Edit2, Save, X, 
     Calendar, Star, Wallet, Clock, MapPin, Shield, Award, 
     ChevronRight, Sparkles, TrendingUp, Route, LogOut, CheckCircle
 } from 'lucide-react';
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
 import { supabase } from '../../../supabaseClient';
 import toast from 'react-hot-toast';
 import { getSafeSession } from '../../../utils/webViewHelper';
@@ -115,27 +111,19 @@ const PassengerProfile = ({ onBack, onLogout }) => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-<<<<<<< HEAD
-            // Fetch in parallel: profile meta, reviews, payments, bookings for route
-            const [profileRes, reviewsRes, bookingsRes] = await Promise.all([
-=======
             // Fetch in parallel: profile meta, driver photo, reviews, bookings for route
             const [profileRes, driverRes, reviewsRes, bookingsRes] = await Promise.all([
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                 supabase
                     .from('profiles')
                     .select('created_at, avatar_url')
                     .eq('id', user.id)
                     .maybeSingle(),
                 supabase
-<<<<<<< HEAD
-=======
                     .from('drivers')
                     .select('profile_photo_url')
                     .eq('user_id', user.id)
                     .maybeSingle(),
                 supabase
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                     .from('reviews')
                     .select('rating')
                     .eq('target_id', user.id),
@@ -148,11 +136,7 @@ const PassengerProfile = ({ onBack, onLogout }) => {
 
             const info = {
                 memberSince: profileRes.data?.created_at || null,
-<<<<<<< HEAD
-                avatarUrl: profileRes.data?.avatar_url || null,
-=======
                 avatarUrl: profileRes.data?.avatar_url || driverRes.data?.profile_photo_url || null,
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                 avgRating: null,
                 reviewCount: 0,
                 totalSpent: 0,
@@ -176,23 +160,15 @@ const PassengerProfile = ({ onBack, onLogout }) => {
                         totalSpent += b.trips.price_per_seat * (b.seats_requested || 1);
                     }
                     if (b.trips?.from_location && b.trips?.to_location) {
-<<<<<<< HEAD
-                        const route = `${b.trips.from_location} → ${b.trips.to_location}`;
-=======
                         const from = b.trips.from_location.split(',')[0].trim();
                         const to = b.trips.to_location.split(',')[0].trim();
                         const route = `${from} → ${to}`;
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                         routeCount[route] = (routeCount[route] || 0) + 1;
                     }
                 });
 
                 info.totalSpent = totalSpent;
 
-<<<<<<< HEAD
-                // Find most frequent route
-=======
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                 let maxCount = 0;
                 Object.entries(routeCount).forEach(([route, count]) => {
                     if (count > maxCount) {
@@ -247,11 +223,6 @@ const PassengerProfile = ({ onBack, onLogout }) => {
         return date.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
     };
 
-<<<<<<< HEAD
-    const avatarSrc = extraInfo.avatarUrl ||
-        `https://api.dicebear.com/7.x/avataaars/svg?seed=${formData.full_name || 'Passenger'}`;
-
-=======
     // Default avatar using DiceBear if no photo uploaded
     const avatarSrc = extraInfo.avatarUrl ||
         `https://api.dicebear.com/7.x/avataaars/svg?seed=${formData.full_name || 'Passenger'}`;
@@ -270,7 +241,6 @@ const PassengerProfile = ({ onBack, onLogout }) => {
         visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] } }
     };
 
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
     return (
         <div className="pp-container">
             {/* Premium Header */}
@@ -297,15 +267,6 @@ const PassengerProfile = ({ onBack, onLogout }) => {
                     <p>Loading your profile...</p>
                 </div>
             ) : (
-<<<<<<< HEAD
-                <div className="profile-scroll-content">
-                    {/* Profile Picture Section */}
-                    <div className="profile-picture-section">
-                        <div className="profile-picture">
-                            <img src={avatarSrc} alt="Profile" className="profile-avatar-img" />
-                            <button className="change-picture-btn">
-                                <Camera size={16} />
-=======
                 <motion.div 
                     className="pp-scroll-content"
                     variants={containerVariants}
@@ -320,7 +281,6 @@ const PassengerProfile = ({ onBack, onLogout }) => {
                             </div>
                             <button className="pp-camera-btn">
                                 <Camera size={14} strokeWidth={2.5} />
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                             </button>
                             {extraInfo.avatarUrl && (
                                 <div className="pp-verified-badge">
@@ -328,40 +288,6 @@ const PassengerProfile = ({ onBack, onLogout }) => {
                                 </div>
                             )}
                         </div>
-<<<<<<< HEAD
-                        <h2>{formData.full_name || 'Passenger'}</h2>
-                        <span className="user-role">Passenger</span>
-                        {extraInfo.memberSince && (
-                            <div className="member-since">
-                                <Calendar size={14} />
-                                <span>Member since {formatMemberSince(extraInfo.memberSince)}</span>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Stats Cards */}
-                    <div className="stats-grid">
-                        <div className="stat-card">
-                            <div className="stat-icon">
-                                <MapPin size={20} />
-                            </div>
-                            <div className="stat-value">{stats.totalRides}</div>
-                            <div className="stat-label">Total Rides</div>
-                        </div>
-                        <div className="stat-card">
-                            <div className="stat-icon upcoming">
-                                <Clock size={20} />
-                            </div>
-                            <div className="stat-value">{stats.upcomingRides}</div>
-                            <div className="stat-label">Upcoming</div>
-                        </div>
-                        <div className="stat-card">
-                            <div className="stat-icon completed">
-                                <Award size={20} />
-                            </div>
-                            <div className="stat-value">{stats.completedRides}</div>
-                            <div className="stat-label">Completed</div>
-=======
                         <h2 className="pp-user-name">{formData.full_name || 'Passenger'}</h2>
                         <div className="pp-role-badge">
                             <Sparkles size={12} />
@@ -397,23 +323,9 @@ const PassengerProfile = ({ onBack, onLogout }) => {
                             </div>
                             <div className="pp-stat-number">{stats.completedRides}</div>
                             <div className="pp-stat-label">Completed</div>
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                         </div>
                     </motion.div>
 
-<<<<<<< HEAD
-                    {/* Rating & Spending Summary */}
-                    <div className="summary-cards">
-                        <div className="summary-card rating-card">
-                            <div className="summary-icon-wrap">
-                                <Star size={20} fill="#EAB308" color="#EAB308" />
-                            </div>
-                            <div className="summary-content">
-                                <div className="summary-value">
-                                    {extraInfo.avgRating || 'New'}
-                                </div>
-                                <div className="summary-label">
-=======
                     {/* Rating & Spending */}
                     <motion.div variants={itemVariants} className="pp-summary-row">
                         <div className="pp-summary-card">
@@ -425,47 +337,12 @@ const PassengerProfile = ({ onBack, onLogout }) => {
                                     {extraInfo.avgRating || '5.0'}
                                 </div>
                                 <div className="pp-summary-label">
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                                     {extraInfo.reviewCount > 0
                                         ? `${extraInfo.reviewCount} review${extraInfo.reviewCount > 1 ? 's' : ''}`
                                         : 'No reviews yet'}
                                 </div>
                             </div>
                         </div>
-<<<<<<< HEAD
-                        <div className="summary-card spending-card">
-                            <div className="summary-icon-wrap spending">
-                                <Wallet size={20} />
-                            </div>
-                            <div className="summary-content">
-                                <div className="summary-value">
-                                    ₹{extraInfo.totalSpent.toLocaleString('en-IN')}
-                                </div>
-                                <div className="summary-label">Total Spent</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Favourite Route */}
-                    {extraInfo.favouriteRoute && (
-                        <div className="favourite-route-section">
-                            <h3>
-                                <MapPin size={16} />
-                                Frequent Route
-                            </h3>
-                            <div className="route-display">
-                                {extraInfo.favouriteRoute}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Profile Information */}
-                    <div className="profile-info-section">
-                        <h3>
-                            <Shield size={16} />
-                            Personal Information
-                        </h3>
-=======
                         <div className="pp-summary-card">
                             <div className="pp-summary-icon pp-summary-icon--wallet">
                                 <Wallet size={20} />
@@ -478,7 +355,6 @@ const PassengerProfile = ({ onBack, onLogout }) => {
                             </div>
                         </div>
                     </motion.div>
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
 
                     {/* Favourite Route */}
                     {extraInfo.favouriteRoute && (
@@ -551,29 +427,6 @@ const PassengerProfile = ({ onBack, onLogout }) => {
                     </motion.div>
 
                     {/* Action Buttons */}
-<<<<<<< HEAD
-                    {editing ? (
-                        <div className="action-buttons">
-                            <button className="btn-secondary" onClick={handleCancel}>
-                                <X size={18} />
-                                Cancel
-                            </button>
-                            <button className="btn-primary" onClick={handleSave}>
-                                <Save size={18} />
-                                Save Changes
-                            </button>
-                        </div>
-                    ) : (
-                        <div className="action-buttons">
-                            <button className="btn-logout" onClick={onLogout}>
-                                Logout
-                            </button>
-                        </div>
-                    )}
-                </div>
-            )}
-        </div >
-=======
                     <motion.div variants={itemVariants}>
                         <AnimatePresence mode="wait">
                             {editing ? (
@@ -612,7 +465,6 @@ const PassengerProfile = ({ onBack, onLogout }) => {
                 </motion.div>
             )}
         </div>
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
     );
 };
 

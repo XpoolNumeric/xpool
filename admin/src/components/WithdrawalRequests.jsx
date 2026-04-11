@@ -183,11 +183,7 @@ const WithdrawalRequests = () => {
     const [requests, setRequests] = useState([]);
     const [loading, setLoading] = useState(true);
     const [sidebarOpen, setSidebarOpen] = useState(typeof window !== 'undefined' ? window.innerWidth >= 1024 : false);
-<<<<<<< HEAD
-
-=======
     
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
     // Filters and Search
     const [searchQuery, setSearchQuery] = useState('');
     const [methodFilter, setMethodFilter] = useState('all'); // all, upi, bank
@@ -216,31 +212,13 @@ const WithdrawalRequests = () => {
     };
 
     const handleApprove = async (id, amount) => {
-<<<<<<< HEAD
-        if (!confirm(`Are you sure you want to mark ₹${amount} as SENT?`)) return;
-
-        try {
-            const { error } = await supabase
-                .from('withdrawal_requests')
-                .update({ status: 'approved', updated_at: new Date() })
-                .eq('id', id);
-
-=======
         if (!confirm(`Are you sure you want to mark ₹${amount} as SENT? This will finalize the deduction.`)) return;
 
         try {
             const { error } = await supabase.rpc('approve_withdrawal_request', { request_id: id });
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
             if (error) throw error;
 
-            // Broadcast refresh event to driver wallet UI
-            await supabase.channel('app_wide_events').send({
-                type: 'broadcast',
-                event: 'force_wallet_refresh',
-                payload: { request_id: id }
-            });
-
-            toast.success('Funds Marked as Sent');
+            toast.success('Funds Sent & Wallet Deducted');
             fetchRequests();
         } catch (error) {
             console.error(error);
@@ -277,13 +255,8 @@ const WithdrawalRequests = () => {
 
     const filteredRequests = useMemo(() => {
         return requests.filter(req => {
-<<<<<<< HEAD
-            const matchesSearch = req.drivers?.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                req.drivers?.vehicle_number?.toLowerCase().includes(searchQuery.toLowerCase());
-=======
             const matchesSearch = req.drivers?.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
                                   req.drivers?.vehicle_number?.toLowerCase().includes(searchQuery.toLowerCase());
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
             const matchesMethod = methodFilter === 'all' || req.method === methodFilter;
             return matchesSearch && matchesMethod;
         });
@@ -295,11 +268,7 @@ const WithdrawalRequests = () => {
         hidden: { opacity: 0 },
         visible: { opacity: 1, transition: { staggerChildren: 0.05 } }
     };
-<<<<<<< HEAD
-
-=======
     
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
     const cardVariants = {
         hidden: { opacity: 0, scale: 0.98, y: 10 },
         visible: { opacity: 1, scale: 1, y: 0, transition: { duration: 0.3, ease: [0.22, 1, 0.36, 1] } },
@@ -310,20 +279,12 @@ const WithdrawalRequests = () => {
         <div className="dashboard-container bg-gray-50/50" style={{ minHeight: '100vh', position: 'relative', background: "linear-gradient(160deg, #fffbeb 0%, #fef9e7 45%, #fffdf5 100%)" }}>
             <GlobalStyles />
             <PulseBackground />
-<<<<<<< HEAD
-
-=======
             
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
             <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
 
             <div className={`dashboard-content-wrapper relative z-10 h-full transition-all duration-300 pt-16 pb-10 ${sidebarOpen ? 'md:ml-64 lg:ml-72' : 'ml-0'}`}>
                 <main className="dashboard-main max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
-<<<<<<< HEAD
-
-=======
                     
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                     {/* Header Section */}
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-10">
                         <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5 }}>
@@ -336,11 +297,7 @@ const WithdrawalRequests = () => {
                             <p className="text-gray-500 font-medium">Manage driver withdrawal requests and settlements</p>
                         </motion.div>
 
-<<<<<<< HEAD
-                        <motion.div
-=======
                         <motion.div 
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.2 }}
                             className="badge-breathe glass-card flex items-center gap-5 p-4 rounded-2xl"
                         >
@@ -360,21 +317,13 @@ const WithdrawalRequests = () => {
                     </div>
 
                     {/* Toolbar */}
-<<<<<<< HEAD
-                    <motion.div
-=======
                     <motion.div 
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                         initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.3 }}
                         className="flex flex-col sm:flex-row gap-4 mb-8"
                     >
                         <div className="relative flex-1 max-w-md">
                             <Search className="absolute left-4 top-1/2 -transform-translate-y-1/2 text-gray-400 -mt-2.5" size={20} />
-<<<<<<< HEAD
-                            <input
-=======
                             <input 
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                                 type="text"
                                 placeholder="Search driver name or vehicle..."
                                 value={searchQuery}
@@ -393,13 +342,8 @@ const WithdrawalRequests = () => {
                                     onClick={() => setMethodFilter(filter.id)}
                                     className={cn(
                                         "px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-2 transition-all",
-<<<<<<< HEAD
-                                        methodFilter === filter.id
-                                            ? "bg-amber-500 text-white shadow-md shadow-amber-500/20"
-=======
                                         methodFilter === filter.id 
                                             ? "bg-amber-500 text-white shadow-md shadow-amber-500/20" 
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                                             : "text-gray-600 hover:bg-gray-100/80"
                                     )}
                                 >
@@ -417,11 +361,7 @@ const WithdrawalRequests = () => {
                             <p className="text-gray-500 font-medium animate-pulse">Syncing payouts...</p>
                         </div>
                     ) : filteredRequests.length === 0 ? (
-<<<<<<< HEAD
-                        <motion.div
-=======
                         <motion.div 
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                             initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
                             className="glass-card flex flex-col items-center justify-center p-16 text-center rounded-3xl"
                         >
@@ -430,21 +370,13 @@ const WithdrawalRequests = () => {
                             </div>
                             <h3 className="text-2xl font-bold text-gray-900 mb-2">No Requests Found</h3>
                             <p className="text-gray-500 max-w-sm">
-<<<<<<< HEAD
-                                {requests.length === 0
-=======
                                 {requests.length === 0 
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                                     ? "All drivers are settled up! No pending withdrawal requests at the moment."
                                     : "No requests match your current filters. Try adjusting your search."}
                             </p>
                         </motion.div>
                     ) : (
-<<<<<<< HEAD
-                        <motion.div
-=======
                         <motion.div 
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                             variants={containerVariants}
                             initial="hidden"
                             animate="visible"
@@ -452,36 +384,14 @@ const WithdrawalRequests = () => {
                         >
                             <AnimatePresence>
                                 {filteredRequests.map(req => (
-<<<<<<< HEAD
-                                    <motion.div
-                                        key={req.id}
-=======
                                     <motion.div 
                                         key={req.id} 
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                                         variants={cardVariants}
                                         layout
                                         className="glass-card rounded-2xl overflow-hidden flex flex-col group relative"
                                     >
                                         {/* Status indicator bar top */}
                                         <div className="h-1.5 w-full bg-gradient-to-r from-amber-400 to-amber-600"></div>
-<<<<<<< HEAD
-
-                                        <div className="p-6 flex-1 flex flex-col">
-                                            {/* Header */}
-                                            <div className="flex justify-between items-start mb-5">
-                                                <div className="flex flex-col">
-                                                    <span className="text-lg font-bold text-gray-900 mb-0.5">{req.drivers?.full_name || 'Unknown Driver'}</span>
-                                                    <span className="text-sm font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md inline-block w-max">
-                                                        {req.drivers?.vehicle_number}
-                                                    </span>
-                                                </div>
-                                                <div className="bg-amber-100/50 px-3 py-1.5 rounded-lg border border-amber-200">
-                                                    <span className="text-xl font-extrabold text-amber-600 tracking-tight">{formatCurrency(req.amount)}</span>
-                                                </div>
-                                            </div>
-
-=======
                                         
                                         <div className="p-6 flex-1 flex flex-col">
                                             {/* Header */}
@@ -497,17 +407,12 @@ const WithdrawalRequests = () => {
                                                 </div>
                                             </div>
 
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                                             {/* Details Plate */}
                                             <div className="bg-white/60 p-4 rounded-xl border border-gray-100 mb-5 flex-1 relative overflow-hidden">
                                                 <div className="absolute top-0 right-0 p-3 opacity-10 pointer-events-none">
                                                     {req.method === 'upi' ? <Zap size={48} /> : <CreditCard size={48} />}
                                                 </div>
-<<<<<<< HEAD
-
-=======
                                                 
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                                                 <div className="flex items-center gap-2 mb-3">
                                                     <div className="px-2.5 py-1 rounded bg-gray-900 text-white text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 w-max">
                                                         {req.method === 'upi' ? 'UPI Transfer' : 'Bank Transfer'}
@@ -551,22 +456,14 @@ const WithdrawalRequests = () => {
 
                                             {/* Action Buttons */}
                                             <div className="grid grid-cols-2 gap-3 mt-auto">
-<<<<<<< HEAD
-                                                <button
-=======
                                                 <button 
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                                                     onClick={() => handleReject(req.id)}
                                                     className="btn-danger py-3 rounded-xl flex items-center justify-center gap-2"
                                                 >
                                                     <X size={18} strokeWidth={2.5} />
                                                     Reject
                                                 </button>
-<<<<<<< HEAD
-                                                <button
-=======
                                                 <button 
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                                                     onClick={() => handleApprove(req.id, req.amount)}
                                                     className="cta-shimmer py-3 rounded-xl flex items-center justify-center gap-2"
                                                 >

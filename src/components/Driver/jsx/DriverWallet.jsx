@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Wallet, TrendingUp, TrendingDown, Clock, X, BarChart2, Check } from 'lucide-react';
+import { ArrowLeft, Wallet, TrendingUp, TrendingDown, Clock, X, BarChart2 } from 'lucide-react';
 import { supabase } from '../../../supabaseClient';
 import toast from 'react-hot-toast';
 import '../css/DriverWallet.css';
@@ -155,11 +155,7 @@ const DriverWallet = ({ onBack }) => {
                     combinedTxs.push({
                         id: `with-${r.id}`,
                         type: 'debit',
-<<<<<<< HEAD
-                        description: r.status === 'pending' ? 'Withdrawal Request' : (r.status === 'approved' ? 'Withdrawal Successful' : 'Withdrawal Rejected'),
-=======
                         description: r.status === 'pending' ? 'Withdrawal Request' : 'Withdrawal Approved',
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                         amount: Number(r.amount || 0),
                         created_at: r.created_at,
                         isWithdrawal: true,
@@ -257,18 +253,7 @@ const DriverWallet = ({ onBack }) => {
                 }, () => fetchWalletData())
                 .subscribe();
 
-<<<<<<< HEAD
-            const broadcastChannel = supabase
-                .channel('app_wide_events')
-                .on('broadcast', { event: 'force_wallet_refresh' }, () => {
-                    fetchWalletData();
-                })
-                .subscribe();
-
-            return { walletChannel, tripsChannel, withdrawalsChannel, bookingsChannel, rechargesChannel, broadcastChannel };
-=======
             return { walletChannel, tripsChannel, withdrawalsChannel, bookingsChannel, rechargesChannel };
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
         };
 
         const subscriptionsPromise = setupSubscriptions();
@@ -281,12 +266,6 @@ const DriverWallet = ({ onBack }) => {
                     supabase.removeChannel(channels.withdrawalsChannel);
                     supabase.removeChannel(channels.bookingsChannel);
                     supabase.removeChannel(channels.rechargesChannel);
-<<<<<<< HEAD
-                    if (channels.broadcastChannel) {
-                        supabase.removeChannel(channels.broadcastChannel);
-                    }
-=======
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                 }
             });
         };
@@ -566,30 +545,17 @@ const DriverWallet = ({ onBack }) => {
                                     return (
                                         <div key={tx.id} className="transaction-item-wrapper">
                                             <div className="transaction-item">
-<<<<<<< HEAD
-                                                <div className={`tx-icon ${tx.isWithdrawal && tx.status === 'approved' ? 'credit' : tx.type}`}>
-                                                    {tx.isWithdrawal && tx.status === 'approved' ? <Check size={20} /> : tx.type === 'credit' ? <TrendingUp size={20} /> : <TrendingDown size={20} />}
-=======
                                                 <div className={`tx-icon ${tx.type}`}>
                                                     {tx.type === 'credit' ? <TrendingUp size={20} /> : <TrendingDown size={20} />}
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                                                 </div>
                                                 <div className="tx-details">
                                                     <div className="tx-desc">
                                                         {tx.description || 'Transaction'} 
-<<<<<<< HEAD
-                                                        {tx.isWithdrawal && tx.status === 'pending' ? ' (pending)' : ''}
-                                                    </div>
-                                                    <div className="tx-date">{formatDate(tx.created_at)}</div>
-                                                </div>
-                                                <div className={`tx-amount ${tx.isWithdrawal && tx.status === 'approved' ? 'credit' : tx.type}`}>
-=======
                                                         {tx.isWithdrawal && tx.status && ` (${tx.status})`}
                                                     </div>
                                                     <div className="tx-date">{formatDate(tx.created_at)}</div>
                                                 </div>
                                                 <div className={`tx-amount ${tx.type}`}>
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                                                     {tx.type === 'credit' ? '+' : '-'}{formatCurrency(tx.amount)}
                                                 </div>
                                             </div>
@@ -654,14 +620,14 @@ const DriverWallet = ({ onBack }) => {
                             <div className="transactions-list">
                                 {requests.map(req => (
                                     <div key={req.id} className="transaction-item">
-                                        <div className={`tx-icon ${req.status === 'approved' ? 'credit' : req.status}`}>
-                                            {req.status === 'approved' ? <Check size={20} /> : <Wallet size={20} />}
+                                        <div className={`tx-icon ${req.status}`}>
+                                            <Wallet size={20} />
                                         </div>
                                         <div className="tx-details">
                                             <div className="tx-desc">
                                                 {req.status === 'pending' ? 'Processing...' :
-                                                    req.status === 'approved' ? 'Withdrawal Successful' :
-                                                        'Request Rejected'}
+                                                    req.status === 'approved' ? 'Sent to Bank/UPI' :
+                                                        'Request Not Sent'}
                                             </div>
                                             <div className="tx-date">{formatDate(req.created_at)}</div>
                                             {req.status === 'rejected' && req.admin_note && (
@@ -669,10 +635,10 @@ const DriverWallet = ({ onBack }) => {
                                             )}
                                         </div>
                                         <div className={`tx-status-badge ${req.status}`}>
-                                            {req.status === 'approved' ? 'Successful' : req.status}
+                                            {req.status}
                                         </div>
-                                        <div className={`tx-amount ${req.status === 'approved' ? 'credit' : 'debit'}`}>
-                                            -{formatCurrency(req.amount)}
+                                        <div className="tx-amount debit">
+                                            {formatCurrency(req.amount)}
                                         </div>
                                     </div>
                                 ))}

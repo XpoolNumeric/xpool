@@ -1,10 +1,5 @@
-<<<<<<< HEAD
-import React, { useState } from 'react';
-import { ArrowLeft, Calendar, Car, Bike, Search, Star } from 'lucide-react';
-=======
 import React, { useState, useRef } from 'react';
 import { ArrowLeft, Calendar, Car, Bike, Search, Star, MapPin, Clock, User } from 'lucide-react';
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
 import { supabase } from '../../../supabaseClient';
 import { calculateDistance } from '../../../utils/googleMapsHelper';
 import toast from 'react-hot-toast';
@@ -167,11 +162,7 @@ const SearchTrips = ({ onBack, onTripSelect, searchParams, session }) => {
                     if (driverIds.length > 0) {
                         const [{ data: profiles }, { data: driversResult }, { data: reviews }] = await Promise.all([
                             supabase.from('profiles').select('id, full_name, avatar_url').in('id', driverIds),
-<<<<<<< HEAD
-                            supabase.from('drivers').select('user_id, profile_photo_url').in('user_id', driverIds),
-=======
                             supabase.from('drivers').select('user_id, profile_photo_url, vehicle_number, vehicle_type').in('user_id', driverIds),
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                             supabase.from('reviews').select('target_id, rating').in('target_id', driverIds)
                         ]);
 
@@ -196,14 +187,10 @@ const SearchTrips = ({ onBack, onTripSelect, searchParams, session }) => {
                                 fullName: profile?.full_name || 'Driver',
                                 avatar: driver?.profile_photo_url || profile?.avatar_url || null,
                                 rating: ratingData && ratingData.count > 0 ? (ratingData.sum / ratingData.count).toFixed(1) : "5.0",
-<<<<<<< HEAD
-                                reviewCount: ratingData ? ratingData.count : 0
-=======
                                 reviewCount: ratingData ? ratingData.count : 0,
                                 vehicleNumber: driver?.vehicle_number || null,
                                 vehicleType: driver?.vehicle_type || null,
                                 vehicleColor: driver?.vehicle_color || null
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                             };
                         });
 
@@ -211,8 +198,6 @@ const SearchTrips = ({ onBack, onTripSelect, searchParams, session }) => {
                             const dId = trip.user_id || trip.driver_id;
                             if (dId && driverInfoMap[dId]) {
                                 trip.extended_driver_info = driverInfoMap[dId];
-<<<<<<< HEAD
-=======
                                 // Fill in vehicle details from driver profile if trip doesn't have them
                                 if (!trip.vehicle_number && driverInfoMap[dId].vehicleNumber) {
                                     trip.vehicle_number = driverInfoMap[dId].vehicleNumber;
@@ -220,7 +205,6 @@ const SearchTrips = ({ onBack, onTripSelect, searchParams, session }) => {
                                 if (!trip.vehicle_color && driverInfoMap[dId].vehicleColor) {
                                     trip.vehicle_color = driverInfoMap[dId].vehicleColor;
                                 }
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                             }
                         });
                     }
@@ -364,83 +348,10 @@ const SearchTrips = ({ onBack, onTripSelect, searchParams, session }) => {
                         <p style={{fontSize: '0.85rem', color: '#6b7280'}}>Try adjusting your route, date or check back later.</p>
                     </div>
                 ) : (
-<<<<<<< HEAD
-                    <div className="results-list">
-                        {results.map(trip => (
-                            <div
-                                key={trip.id}
-                                className="trip-result-card"
-                                onClick={() => onTripSelect(trip)}
-                            >
-                                <div className="trip-card-header">
-                                    <div className="driver-info">
-                                        <div className="driver-avatar" style={{ padding: trip.extended_driver_info?.avatar ? '0' : undefined, overflow: 'hidden' }}>
-                                            {trip.extended_driver_info?.avatar ? (
-                                                <img 
-                                                    src={trip.extended_driver_info.avatar} 
-                                                    alt="Driver" 
-                                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-                                                />
-                                            ) : (
-                                                (trip.extended_driver_info?.fullName || trip.driver_name || 'D').charAt(0).toUpperCase()
-                                            )}
-                                        </div>
-                                        <div className="driver-header-details">
-                                            <h3>{trip.extended_driver_info?.fullName || trip.driver_name || 'Driver'}</h3>
-                                            
-                                            {trip.extended_driver_info?.rating && (
-                                                <div className="driver-rating" style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', marginBottom: '4px', fontSize: '13px', color: '#4B5563' }}>
-                                                    <Star size={14} fill="#EAB308" color="#EAB308" />
-                                                    <span style={{ fontWeight: '700', color: '#111827' }}>{trip.extended_driver_info.rating}</span>
-                                                    <span style={{ color: '#9CA3AF' }}>({trip.extended_driver_info.reviewCount})</span>
-                                                </div>
-                                            )}
-                                            
-                                            <span className="vehicle-type" style={{ marginTop: trip.extended_driver_info?.rating ? '0' : '4px' }}>
-                                                {trip.vehicle_type === 'car' ? <Car size={14} /> : <Bike size={14} />}
-                                                {trip.vehicle_type}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    {trip.price_per_seat && (
-                                        <div className="price">
-                                            ₹{trip.price_per_seat}
-                                            <span>/seat</span>
-                                        </div>
-                                    )}
-                                </div>
-
-                                <div className="trip-route">
-                                    <div className="route-point from">
-                                        <div className="dot"></div>
-                                        <span>{trip.from_location}</span>
-                                    </div>
-                                    <div className="route-line"></div>
-                                    <div className="route-point to">
-                                        <div className="dot"></div>
-                                        <span>{trip.to_location}</span>
-                                    </div>
-                                </div>
-
-                                <div className="trip-meta">
-                                    <span className="meta-item">
-                                        <Calendar size={14} />
-                                        {trip.formatted_date || formatDate(trip.travel_date)}
-                                    </span>
-                                    <span className="meta-item">
-                                        <span className="time-icon">🕐</span>
-                                        {trip.formatted_time || formatTime(trip.travel_time)}
-                                    </span>
-                                    <span className="meta-item seats">
-                                        {trip.available_seats} seat{trip.available_seats > 1 ? 's' : ''} left
-                                    </span>
-                                </div>
-=======
                     hasSearched && (
                         <>
                             <div className="results-divider">
                                 <span>{results.length} RIDES FOUND</span>
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                             </div>
 
                             <div className="rides-list">

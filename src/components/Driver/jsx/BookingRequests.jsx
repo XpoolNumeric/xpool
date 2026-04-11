@@ -329,26 +329,10 @@ const BookingRequests = ({ onBack }) => {
                                                 <span>{request.passenger_rating}</span>
                                             </div>
                                         </div>
-<<<<<<< HEAD
-                                        <span className="seats-requested">
-                                            <Users size={14} />
-                                            {request.seats_requested} seat{request.seats_requested > 1 ? 's' : ''} requested
-                                        </span>
-                                    </div>
-                                    <div className="passenger-contact-actions">
-                                        <button className="icon-btn-small chat" onClick={() => {
-                                            setActiveChatTripId(request.trip_id);
-                                            setActiveChatBookingId(request.id);
-                                            setShowChat(true);
-                                        }}>
-                                            <MessageCircle size={18} />
-                                        </button>
-=======
                                         <div className="meta-bottom-row">
                                             <Users size={12} strokeWidth={2.5} className="meta-icon" />
                                             <span>{request.seats_requested} seat{request.seats_requested > 1 ? 's' : ''} requested</span>
                                         </div>
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                                     </div>
                                     <button className="chat-circle-btn" onClick={() => {
                                         setActiveChatTripId(request.trip_id);

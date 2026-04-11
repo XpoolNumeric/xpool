@@ -8,17 +8,9 @@ import './OTPVerification.css';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-<<<<<<< HEAD
-const OTPVerification = ({ onBack, onVerify, phoneNumber, isSignupFlow = false, isAddMode = false }) => {
-    const [otp, setOtp] = useState(['', '', '', '', '', '']);
-    const [loading, setLoading] = useState(false);
-    const [resending, setResending] = useState(false);
-    const inputRefs = [useRef(), useRef(), useRef(), useRef(), useRef(), useRef()];
-=======
 // ─────────────────────────────────────────────────────────────────────────────
 // Mesh background blobs (matches PhoneLogin / RoleSelection)
 // ─────────────────────────────────────────────────────────────────────────────
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
 
 const MESH_BLOBS = [
   { x: 10, y: 15, size: 220, opacity: 0.06 },
@@ -79,25 +71,8 @@ const OTPVerification = ({ onBack, onVerify, phoneNumber, isSignupFlow = false, 
   const [resending, setResending] = useState(false);
   const inputRefs = [useRef(), useRef(), useRef(), useRef(), useRef(), useRef()];
 
-<<<<<<< HEAD
-    const handleVerify = async () => {
-        const otpString = otp.join('');
-        if (otpString.length !== 6) {
-            toast.error('Please enter the full 6-digit OTP.');
-            return;
-        }
-        try {
-            setLoading(true);
-            const { data, error } = await supabase.auth.verifyOtp({
-                phone: phoneNumber,
-                token: otpString,
-                type: isAddMode ? 'phone_change' : 'sms'
-            });
-            if (error) throw error;
-=======
   const invokeEdgeFunction = async (fnName, body) => {
     const { data: { session } } = await supabase.auth.getSession();
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
 
     if (session?.access_token) {
       const { data, error } = await supabase.functions.invoke(fnName, { body });
@@ -105,26 +80,6 @@ const OTPVerification = ({ onBack, onVerify, phoneNumber, isSignupFlow = false, 
       return data;
     }
 
-<<<<<<< HEAD
-    const handleResendOtp = async () => {
-        try {
-            setResending(true);
-            const { error } = await supabase.auth.resend({
-                phone: phoneNumber,
-                type: isAddMode ? 'phone_change' : 'sms',
-            });
-            if (error) throw error;
-            toast.success('OTP resent successfully!');
-            setOtp(['', '', '', '', '', '']);
-            inputRefs[0].current?.focus();
-        } catch (error) {
-            console.error('[OTPVerification] Resend error:', error);
-            toast.error(error.message || 'Failed to resend OTP.');
-        } finally {
-            setResending(false);
-        }
-    };
-=======
     const res = await fetch(`${SUPABASE_URL}/functions/v1/${fnName}`, {
       method: 'POST',
       headers: {
@@ -134,7 +89,6 @@ const OTPVerification = ({ onBack, onVerify, phoneNumber, isSignupFlow = false, 
       },
       body: JSON.stringify(body),
     });
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
 
     const data = await res.json();
     if (!res.ok) throw new Error(data?.error || `Edge function error (${res.status})`);

@@ -16,15 +16,9 @@ import './PhoneLogin.css';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-<<<<<<< HEAD
-const PhoneLogin = ({ onBack, onProceed, isSignupFlow = false, isAddMode = false }) => {
-    const [phoneNumber, setPhoneNumber] = useState('');
-    const [loading, setLoading] = useState(false);
-=======
 // ─────────────────────────────────────────────────────────────────────────────
 // Mesh background blobs (same pattern as RoleSelection / AuthSelection)
 // ─────────────────────────────────────────────────────────────────────────────
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
 
 const MESH_BLOBS = [
   { x: 10, y: 15, size: 220, delay: 0, dur: 5, opacity: 0.06 },
@@ -85,28 +79,9 @@ const pillVariants = {
   }),
 };
 
-<<<<<<< HEAD
-        try {
-            setLoading(true);
-
-            if (isAddMode) {
-                // User is already logged in via Email, just add phone
-                const { error } = await supabase.auth.updateUser({
-                    phone: formatted
-                });
-                if (error) throw error;
-            } else {
-                // Normal new sign in / setup
-                const { error } = await supabase.auth.signInWithOtp({
-                    phone: formatted,
-                });
-                if (error) throw error;
-            }
-=======
 // ─────────────────────────────────────────────────────────────────────────────
 // Trust/Feature badges
 // ─────────────────────────────────────────────────────────────────────────────
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
 
 const TRUST_PILLS = [
   { icon: Shield, label: 'Encrypted' },
@@ -250,20 +225,6 @@ const PhoneLogin = ({ onBack, onProceed, isSignupFlow = false, isAddMode = false
             <div className="pl-hero-icon-ring" />
           </motion.div>
 
-<<<<<<< HEAD
-            <div className="login-form-container" style={{ paddingTop: '40px' }}>
-                <h2 className="form-title" style={{ textAlign: 'left' }}>
-                    {isAddMode 
-                        ? <>Add Mobile Number<br />To Continue</>
-                        : (isSignupFlow
-                            ? <>Verify your<br />Mobile Number</>
-                            : <>Enter Your Phone Number<br />To Continue</>)}
-                </h2>
-                {isSignupFlow && (
-                    <p style={{ color: '#888', fontSize: '14px', marginTop: '8px' }}>
-                        Step 2 of 2 — We'll send an OTP to confirm your number.
-                    </p>
-=======
           {/* Title */}
           <motion.h1 className="pl-title" variants={itemVariants}>
             {getTitle()}{' '}
@@ -318,7 +279,6 @@ const PhoneLogin = ({ onBack, onProceed, isSignupFlow = false, isAddMode = false
                   >
                     ✓
                   </motion.div>
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                 )}
               </AnimatePresence>
             </div>

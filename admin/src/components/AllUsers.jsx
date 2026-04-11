@@ -124,10 +124,6 @@ function AllUsers() {
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-<<<<<<< HEAD
-    const [filter, setFilter] = useState('all');
-=======
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
     const [sidebarOpen, setSidebarOpen] = useState(typeof window !== 'undefined' ? window.innerWidth >= 1024 : false);
     const [selectedUser, setSelectedUser] = useState(null);
     const [userTrips, setUserTrips] = useState([]);
@@ -181,35 +177,6 @@ function AllUsers() {
                 .update({ is_blocked: !isBlocked })
                 .eq('id', user.id);
             if (error) throw error;
-<<<<<<< HEAD
-
-            toast.success(isBlocked ? "User Unblocked" : "User Blocked");
-            setUsers(users.map(u => u.id === user.id ? { ...u, is_blocked: !isBlocked } : u));
-            if (selectedUser?.id === user.id) {
-                setSelectedUser({ ...selectedUser, is_blocked: !isBlocked });
-            }
-        } catch (error) {
-            console.error("Error updating block status:", error);
-            toast.error("Failed to update user status.");
-        }
-    };
-    const filteredUsers = users.filter(user => {
-        const matchesSearch = user.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            user.phone_number?.includes(searchTerm);
-
-        if (!matchesSearch) return false;
-
-        switch (filter) {
-            case 'passenger': return user.role === 'passenger' || user.role === 'user' || !user.role;
-            case 'driver': return user.role === 'driver';
-            case 'admin': return user.role === 'admin';
-            case 'blocked': return user.is_blocked;
-            default: return true;
-        }
-    });
-
-=======
 
             toast.success(isBlocked ? "User Unblocked" : "User Blocked");
             setUsers(users.map(u => u.id === user.id ? { ...u, is_blocked: !isBlocked } : u));
@@ -227,16 +194,11 @@ function AllUsers() {
         user.phone_number?.includes(searchTerm)
     );
 
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
     const containerVariants = {
         hidden: { opacity: 0 },
         visible: { opacity: 1, transition: { staggerChildren: 0.05 } }
     };
-<<<<<<< HEAD
-
-=======
     
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
     const itemVariants = {
         hidden: { opacity: 0, y: 10, scale: 0.98 },
         visible: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.25, ease: [0.22, 1, 0.36, 1] } },
@@ -247,20 +209,12 @@ function AllUsers() {
         <div className="dashboard-container bg-gray-50/50" style={{ minHeight: '100vh', position: 'relative', background: "linear-gradient(160deg, #eff6ff 0%, #f8fafc 45%, #ffffff 100%)" }}>
             <GlobalStyles />
             <PulseBackground />
-<<<<<<< HEAD
-
-=======
             
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
             <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
 
             <div className={`dashboard-content-wrapper relative z-10 h-full transition-all duration-300 pt-16 pb-10 ${sidebarOpen ? 'md:ml-64 lg:ml-72' : 'ml-0'}`}>
                 <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 w-full">
-<<<<<<< HEAD
-
-=======
                     
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                     {/* Header */}
                     <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5 }} className="mb-10 w-full flex flex-col md:flex-row md:items-end justify-between gap-6">
                         <div>
@@ -272,36 +226,6 @@ function AllUsers() {
                             </div>
                             <p className="text-gray-500 font-medium">Manage all regular users and operational accounts.</p>
                         </div>
-<<<<<<< HEAD
-
-                        {/* Search and Filter */}
-                        <div className="flex flex-col gap-3 w-full md:max-w-md">
-                            <div className="relative w-full">
-                                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-blue-400" size={20} />
-                                <input
-                                    type="text"
-                                    placeholder="Search by name, email or phone..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="glass-input w-full pl-11 pr-4 py-3 sm:py-3.5 rounded-xl text-gray-700 placeholder-gray-400 font-medium shadow-sm transition-all focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50"
-                                    style={{ borderColor: 'rgba(59,130,246,0.3)' }}
-                                />
-                            </div>
-                            <div className="flex items-center gap-2 p-1.5 bg-white/50 backdrop-blur rounded-xl border border-gray-200/50 overflow-x-auto w-full no-scrollbar">
-                                {['all', 'passenger', 'driver', 'admin', 'blocked'].map(f => (
-                                    <button
-                                        key={f}
-                                        onClick={() => setFilter(f)}
-                                        className={`px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-all capitalize whitespace-nowrap ${filter === f
-                                                ? "bg-blue-500 text-white shadow-md shadow-blue-500/20"
-                                                : "text-gray-600 hover:bg-gray-100/80"
-                                            }`}
-                                    >
-                                        {f}
-                                    </button>
-                                ))}
-                            </div>
-=======
                         
                         {/* Search Bar */}
                         <div className="relative w-full md:max-w-md">
@@ -314,7 +238,6 @@ function AllUsers() {
                                 className="glass-input w-full pl-11 pr-4 py-3 sm:py-3.5 rounded-xl text-gray-700 placeholder-gray-400 font-medium shadow-sm transition-all focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50"
                                 style={{ borderColor: 'rgba(59,130,246,0.3)' }}
                             />
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                         </div>
                     </motion.div>
 
@@ -325,11 +248,7 @@ function AllUsers() {
                             <p className="text-gray-500 font-medium animate-pulse">Loading directory...</p>
                         </div>
                     ) : filteredUsers.length === 0 ? (
-<<<<<<< HEAD
-                        <motion.div
-=======
                         <motion.div 
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                             initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
                             className="glass-card flex flex-col items-center justify-center p-16 text-center rounded-3xl"
                         >
@@ -342,11 +261,7 @@ function AllUsers() {
                             </p>
                         </motion.div>
                     ) : (
-<<<<<<< HEAD
-                        <motion.div
-=======
                         <motion.div 
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                             variants={containerVariants}
                             initial="hidden"
                             animate="visible"
@@ -354,13 +269,8 @@ function AllUsers() {
                         >
                             <AnimatePresence>
                                 {filteredUsers.map(user => (
-<<<<<<< HEAD
-                                    <motion.div
-                                        key={user.id}
-=======
                                     <motion.div 
                                         key={user.id} 
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                                         variants={itemVariants}
                                         layout
                                         className="glass-card glass-card-hover rounded-2xl p-6 flex flex-col"
@@ -383,14 +293,7 @@ function AllUsers() {
                                             </div>
                                             <div className="flex flex-col flex-1 pt-1">
                                                 <h3 className="text-lg font-bold text-gray-900 leading-tight mb-1">{user.full_name || 'Anonymous User'}</h3>
-<<<<<<< HEAD
-                                                <span className={`text-xs font-semibold w-max px-2 py-0.5 rounded uppercase tracking-wider ${user.role === 'admin' ? 'bg-amber-100 text-amber-700' :
-                                                        user.role === 'driver' ? 'bg-emerald-100 text-emerald-700' :
-                                                            'bg-blue-100 text-blue-700'
-                                                    }`}>
-=======
                                                 <span className="text-xs font-semibold bg-blue-100 text-blue-700 w-max px-2 py-0.5 rounded uppercase tracking-wider">
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                                                     {user.role || 'Passenger'}
                                                 </span>
                                             </div>
@@ -419,11 +322,7 @@ function AllUsers() {
                                         </div>
 
                                         {/* Action */}
-<<<<<<< HEAD
-                                        <button
-=======
                                         <button 
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                                             onClick={() => handleUserSelect(user)}
                                             className="w-full py-2.5 rounded-xl font-semibold text-sm text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200/50 transition-colors flex justify-center items-center gap-2"
                                         >
@@ -441,11 +340,7 @@ function AllUsers() {
             <AnimatePresence>
                 {selectedUser && (
                     <div className="fixed inset-0 z-[100] bg-gray-900/60 backdrop-blur-md flex items-center justify-center p-4 sm:p-6" onClick={() => setSelectedUser(null)}>
-<<<<<<< HEAD
-                        <motion.div
-=======
                         <motion.div 
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                             initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }}
                             onClick={(e) => e.stopPropagation()}
                             className="bg-white max-w-3xl w-full rounded-3xl shadow-2xl overflow-hidden flex flex-col h-[90vh] md:h-[650px] font-inter"
@@ -466,11 +361,7 @@ function AllUsers() {
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3">
-<<<<<<< HEAD
-                                    <button
-=======
                                     <button 
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                                         onClick={() => toggleBlockUser(selectedUser)}
                                         className={`px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-1.5 transition-colors shadow-sm ${selectedUser.is_blocked ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200' : 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200'}`}
                                     >
@@ -486,16 +377,6 @@ function AllUsers() {
                             {/* Scrollable Body */}
                             <div className="p-6 md:p-8 flex-1 overflow-y-auto bg-white">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-<<<<<<< HEAD
-                                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                                        <span className="text-xs font-bold text-gray-400 uppercase tracking-widest block mb-2">Phone Number</span>
-                                        <div className="font-semibold text-gray-900">{selectedUser.phone_number || 'Not provided'}</div>
-                                    </div>
-                                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                                        <span className="text-xs font-bold text-gray-400 uppercase tracking-widest block mb-2">Joined Date</span>
-                                        <div className="font-semibold text-gray-900">{new Date(selectedUser.created_at).toLocaleDateString()}</div>
-                                    </div>
-=======
                                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
                                        <span className="text-xs font-bold text-gray-400 uppercase tracking-widest block mb-2">Phone Number</span>
                                        <div className="font-semibold text-gray-900">{selectedUser.phone_number || 'Not provided'}</div>
@@ -504,7 +385,6 @@ function AllUsers() {
                                        <span className="text-xs font-bold text-gray-400 uppercase tracking-widest block mb-2">Joined Date</span>
                                        <div className="font-semibold text-gray-900">{new Date(selectedUser.created_at).toLocaleDateString()}</div>
                                    </div>
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                                 </div>
 
                                 <div className="mb-4 flex items-center justify-between">
@@ -524,30 +404,18 @@ function AllUsers() {
                                         {userTrips.map(trip => (
                                             <div key={trip.id} className="border border-gray-100 rounded-xl p-4 hover:bg-gray-50 transition-colors">
                                                 <div className="flex justify-between items-start mb-3">
-<<<<<<< HEAD
-                                                    <div className="font-mono text-xs font-bold text-gray-400 bg-gray-100 px-2 py-1 rounded">#{trip.id.substring(0, 8)}</div>
-=======
                                                     <div className="font-mono text-xs font-bold text-gray-400 bg-gray-100 px-2 py-1 rounded">#{trip.id.substring(0,8)}</div>
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                                                     <span className={`text-[10px] font-black uppercase px-2 py-0.5 border rounded tracking-wider ${trip.status === 'completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-gray-50 text-gray-600 border-gray-200'}`}>
                                                         {trip.status}
                                                     </span>
                                                 </div>
                                                 <div className="space-y-2 mb-3">
                                                     <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
-<<<<<<< HEAD
-                                                        <div className="w-2 h-2 rounded-full bg-emerald-500" /> {trip.from_location}
-                                                    </div>
-                                                    <div className="w-0.5 h-3 bg-gray-200 ml-1"></div>
-                                                    <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
-                                                        <div className="w-2 h-2 rounded-full bg-amber-500" /> {trip.to_location}
-=======
                                                         <div className="w-2 h-2 rounded-full bg-emerald-500"/> {trip.from_location}
                                                     </div>
                                                     <div className="w-0.5 h-3 bg-gray-200 ml-1"></div>
                                                     <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
                                                         <div className="w-2 h-2 rounded-full bg-amber-500"/> {trip.to_location}
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                                                     </div>
                                                 </div>
                                                 <div className="flex justify-between mt-3 pt-3 border-t border-gray-100/50 text-xs font-semibold text-gray-500">

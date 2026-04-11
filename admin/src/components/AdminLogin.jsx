@@ -1,14 +1,6 @@
 import React, { useState, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
-<<<<<<< HEAD
-import { Loader2, AlertCircle, Shield, Mail, Lock, KeyRound, ChevronRight } from 'lucide-react';
-import { motion, useReducedMotion, AnimatePresence } from 'framer-motion';
-import { cn } from '../lib/utils';
-import GlobalStyles from './shared/GlobalStyles';
-import PulseBackground from './shared/PulseBackground';
-
-=======
 import { Loader2, AlertCircle, Shield, Mail, Lock, User, KeyRound, ChevronRight } from 'lucide-react';
 import xpoolLogo from '../assets/xpool-logo.png';
 import { motion, useReducedMotion, AnimatePresence } from 'framer-motion';
@@ -112,7 +104,6 @@ const PulseBackground = memo(() => {
 });
 PulseBackground.displayName = "PulseBackground";
 
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
 // ─────────────────────────────────────────────────────────────────────────────
 // Main Component
 // ─────────────────────────────────────────────────────────────────────────────
@@ -152,11 +143,7 @@ function AdminLogin() {
             localStorage.setItem('adminRole', 'super_admin');
             localStorage.setItem('adminName', 'System Admin');
             localStorage.setItem('adminEmail', expectedEmail);
-<<<<<<< HEAD
-            localStorage.setItem('adminAvatar', '');
-=======
             localStorage.setItem('adminAvatar', ''); // Or maybe some fixed avatar if any
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
             
             navigate('/dashboard');
         } catch (err) {
@@ -170,11 +157,7 @@ function AdminLogin() {
     return (
         <div className="min-h-screen relative flex items-center justify-center p-4 bg-gray-50/50" style={{ background: "linear-gradient(160deg, #fffbeb 0%, #fef9e7 45%, #fffdf5 100%)" }}>
             <GlobalStyles />
-<<<<<<< HEAD
-            <PulseBackground color="amber" />
-=======
             <PulseBackground />
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
             
             <div className="w-full max-w-md relative z-10">
                 <motion.div 
@@ -288,11 +271,7 @@ function AdminLogin() {
             
             {/* Version / Copyright */}
             <div className="absolute bottom-6 font-semibold text-xs text-amber-900/40 uppercase tracking-widest text-center w-full z-10">
-<<<<<<< HEAD
-                Xpool Admin Operations Panel v3.0
-=======
                 Xpool Admin Operations Panel v2.5
->>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
             </div>
         </div>
     );
