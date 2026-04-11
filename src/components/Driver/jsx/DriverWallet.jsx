@@ -155,7 +155,11 @@ const DriverWallet = ({ onBack }) => {
                     combinedTxs.push({
                         id: `with-${r.id}`,
                         type: 'debit',
+<<<<<<< HEAD
                         description: r.status === 'pending' ? 'Withdrawal Request' : (r.status === 'approved' ? 'Withdrawal Successful' : 'Withdrawal Rejected'),
+=======
+                        description: r.status === 'pending' ? 'Withdrawal Request' : 'Withdrawal Approved',
+>>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                         amount: Number(r.amount || 0),
                         created_at: r.created_at,
                         isWithdrawal: true,
@@ -253,6 +257,7 @@ const DriverWallet = ({ onBack }) => {
                 }, () => fetchWalletData())
                 .subscribe();
 
+<<<<<<< HEAD
             const broadcastChannel = supabase
                 .channel('app_wide_events')
                 .on('broadcast', { event: 'force_wallet_refresh' }, () => {
@@ -261,6 +266,9 @@ const DriverWallet = ({ onBack }) => {
                 .subscribe();
 
             return { walletChannel, tripsChannel, withdrawalsChannel, bookingsChannel, rechargesChannel, broadcastChannel };
+=======
+            return { walletChannel, tripsChannel, withdrawalsChannel, bookingsChannel, rechargesChannel };
+>>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
         };
 
         const subscriptionsPromise = setupSubscriptions();
@@ -273,9 +281,12 @@ const DriverWallet = ({ onBack }) => {
                     supabase.removeChannel(channels.withdrawalsChannel);
                     supabase.removeChannel(channels.bookingsChannel);
                     supabase.removeChannel(channels.rechargesChannel);
+<<<<<<< HEAD
                     if (channels.broadcastChannel) {
                         supabase.removeChannel(channels.broadcastChannel);
                     }
+=======
+>>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                 }
             });
         };
@@ -555,17 +566,30 @@ const DriverWallet = ({ onBack }) => {
                                     return (
                                         <div key={tx.id} className="transaction-item-wrapper">
                                             <div className="transaction-item">
+<<<<<<< HEAD
                                                 <div className={`tx-icon ${tx.isWithdrawal && tx.status === 'approved' ? 'credit' : tx.type}`}>
                                                     {tx.isWithdrawal && tx.status === 'approved' ? <Check size={20} /> : tx.type === 'credit' ? <TrendingUp size={20} /> : <TrendingDown size={20} />}
+=======
+                                                <div className={`tx-icon ${tx.type}`}>
+                                                    {tx.type === 'credit' ? <TrendingUp size={20} /> : <TrendingDown size={20} />}
+>>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                                                 </div>
                                                 <div className="tx-details">
                                                     <div className="tx-desc">
                                                         {tx.description || 'Transaction'} 
+<<<<<<< HEAD
                                                         {tx.isWithdrawal && tx.status === 'pending' ? ' (pending)' : ''}
                                                     </div>
                                                     <div className="tx-date">{formatDate(tx.created_at)}</div>
                                                 </div>
                                                 <div className={`tx-amount ${tx.isWithdrawal && tx.status === 'approved' ? 'credit' : tx.type}`}>
+=======
+                                                        {tx.isWithdrawal && tx.status && ` (${tx.status})`}
+                                                    </div>
+                                                    <div className="tx-date">{formatDate(tx.created_at)}</div>
+                                                </div>
+                                                <div className={`tx-amount ${tx.type}`}>
+>>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                                                     {tx.type === 'credit' ? '+' : '-'}{formatCurrency(tx.amount)}
                                                 </div>
                                             </div>

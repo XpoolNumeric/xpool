@@ -66,6 +66,7 @@ const TripBooking = ({ trip, onBack, onSuccess }) => {
                     trip_id: trip.id,
                     passenger_id: session.user.id,
                     seats_requested: seatsRequested,
+                    agreed_price: trip.price_per_seat,
                     message: message.trim() || null,
                     payment_mode: paymentMode,
                     passenger_location: pickupLocation.trim() || null,
@@ -297,6 +298,12 @@ const TripBooking = ({ trip, onBack, onSuccess }) => {
                 {/* Price Summary */}
                 {totalPrice && (
                     <div className="price-summary">
+                        {trip.is_prorated && (
+                            <div style={{ background: '#ecfdf5', color: '#059669', padding: '8px 12px', borderRadius: '8px', fontSize: '0.8rem', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '500' }}>
+                                <span>✨</span>
+                                <span>Prorated dynamically! You are paying for a shorter distance compared to the driver's full ₹{trip.original_price_per_seat} trip.</span>
+                            </div>
+                        )}
                         <div className="price-row">
                             <span>Price per seat</span>
                             <span>₹{trip.price_per_seat}</span>

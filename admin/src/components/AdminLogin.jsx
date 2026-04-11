@@ -1,12 +1,118 @@
 import React, { useState, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
+<<<<<<< HEAD
 import { Loader2, AlertCircle, Shield, Mail, Lock, KeyRound, ChevronRight } from 'lucide-react';
 import { motion, useReducedMotion, AnimatePresence } from 'framer-motion';
 import { cn } from '../lib/utils';
 import GlobalStyles from './shared/GlobalStyles';
 import PulseBackground from './shared/PulseBackground';
 
+=======
+import { Loader2, AlertCircle, Shield, Mail, Lock, User, KeyRound, ChevronRight } from 'lucide-react';
+import xpoolLogo from '../assets/xpool-logo.png';
+import { motion, useReducedMotion, AnimatePresence } from 'framer-motion';
+import { clsx } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+function cn(...inputs) {
+    return twMerge(clsx(inputs));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Global Styles from Hero
+// ─────────────────────────────────────────────────────────────────────────────
+const GlobalStyles = () => (
+    <style>{`
+      .inter-font { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+  
+      :root {
+        --color-amber-50: #fffbeb; --color-amber-100: #fef3c7; --color-amber-200: #fde68a;
+        --color-amber-300: #fcd34d; --color-amber-400: #fbbf24; --color-amber-500: #f59e0b;
+        --color-amber-600: #d97706; --color-amber-700: #b45309; 
+        --transition-base: 0.2s ease-in-out;
+      }
+  
+      @keyframes pulse-fade {
+        0%, 100% { opacity: 0; } 50% { opacity: 1; }
+      }
+      .pulse-blob {
+        animation: pulse-fade ease-in-out infinite;
+        will-change: opacity;
+      }
+
+      /* Glassmorphism utilities */
+      .glass-card {
+        background: rgba(255, 255, 255, 0.7);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+        border: 1px solid rgba(255, 255, 255, 0.8);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+      }
+
+      .glass-input {
+        background: rgba(255, 255, 255, 0.5);
+        border: 1px solid rgba(245, 158, 11, 0.2);
+        transition: all 0.2s;
+      }
+      .glass-input:focus {
+        background: rgba(255, 255, 255, 0.9);
+        border-color: rgba(245, 158, 11, 0.6);
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15);
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .pulse-blob { animation: none !important; }
+      }
+    `}</style>
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Animated Background
+// ─────────────────────────────────────────────────────────────────────────────
+const PULSE_CONFIG = [
+    { x: 10, y: 15, size: 450, delay: 0.2, dur: 5.5, opacity: 0.15 },
+    { x: 85, y: 80, size: 550, delay: 1.5, dur: 6.2, opacity: 0.12 },
+    { x: 75, y: 20, size: 300, delay: 2.8, dur: 4.8, opacity: 0.14 },
+];
+
+const PulseBackground = memo(() => {
+    const prefersReducedMotion = useReducedMotion();
+    if (prefersReducedMotion) return null;
+    return (
+        <div aria-hidden="true" className="fixed inset-0 pointer-events-none overflow-hidden" style={{ zIndex: 0 }}>
+            {PULSE_CONFIG.map((p, i) => (
+                <div
+                    key={i}
+                    className="pulse-blob"
+                    style={{
+                        position: "absolute",
+                        left: `${p.x}%`, top: `${p.y}%`,
+                        width: p.size, height: p.size,
+                        borderRadius: "50%",
+                        transform: "translate(-50%, -50%)",
+                        background: `radial-gradient(circle, rgba(245,158,11,${p.opacity}) 0%, rgba(217,119,6,${p.opacity * 0.5}) 42%, transparent 70%)`,
+                        filter: "blur(60px)",
+                        animationDuration: `${p.dur}s`,
+                        animationDelay: `${p.delay}s`,
+                    }}
+                />
+            ))}
+            <div
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                    backgroundImage: "radial-gradient(rgba(245,158,11,0.06) 1px, transparent 1px)",
+                    backgroundSize: "24px 24px",
+                    zIndex: 1,
+                }}
+            />
+        </div>
+    );
+});
+PulseBackground.displayName = "PulseBackground";
+
+>>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
 // ─────────────────────────────────────────────────────────────────────────────
 // Main Component
 // ─────────────────────────────────────────────────────────────────────────────
@@ -46,7 +152,11 @@ function AdminLogin() {
             localStorage.setItem('adminRole', 'super_admin');
             localStorage.setItem('adminName', 'System Admin');
             localStorage.setItem('adminEmail', expectedEmail);
+<<<<<<< HEAD
             localStorage.setItem('adminAvatar', '');
+=======
+            localStorage.setItem('adminAvatar', ''); // Or maybe some fixed avatar if any
+>>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
             
             navigate('/dashboard');
         } catch (err) {
@@ -60,7 +170,11 @@ function AdminLogin() {
     return (
         <div className="min-h-screen relative flex items-center justify-center p-4 bg-gray-50/50" style={{ background: "linear-gradient(160deg, #fffbeb 0%, #fef9e7 45%, #fffdf5 100%)" }}>
             <GlobalStyles />
+<<<<<<< HEAD
             <PulseBackground color="amber" />
+=======
+            <PulseBackground />
+>>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
             
             <div className="w-full max-w-md relative z-10">
                 <motion.div 
@@ -174,7 +288,11 @@ function AdminLogin() {
             
             {/* Version / Copyright */}
             <div className="absolute bottom-6 font-semibold text-xs text-amber-900/40 uppercase tracking-widest text-center w-full z-10">
+<<<<<<< HEAD
                 Xpool Admin Operations Panel v3.0
+=======
+                Xpool Admin Operations Panel v2.5
+>>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
             </div>
         </div>
     );

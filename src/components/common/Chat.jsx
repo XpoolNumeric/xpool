@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, ArrowLeft, User, UserCircle } from 'lucide-react';
+import { Send, ArrowLeft, UserCircle, MessageSquare } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import toast from 'react-hot-toast';
 import './Chat.css';
@@ -26,7 +26,13 @@ const Chat = ({ tripId, bookingId, onBack, currentUserId }) => {
                         filter: bookingId ? `booking_id=eq.${bookingId}` : `trip_id=eq.${tripId}`
                     },
                     (payload) => {
-                        setMessages((prev) => [...prev, payload.new]);
+                        setMessages((prev) => {
+                            // Prevent duplicate if optimistic update was used
+                            if (!prev.some(m => m.id === payload.new.id || (m.content === payload.new.content && m.sender_id === payload.new.sender_id && new Date(payload.new.created_at) - new Date(m.created_at) < 5000))) {
+                                return [...prev, payload.new];
+                            }
+                            return prev;
+                        });
                     }
                 )
                 .subscribe();
@@ -57,7 +63,11 @@ const Chat = ({ tripId, bookingId, onBack, currentUserId }) => {
                 .select('user_id')
                 .eq('id', tripId)
                 .single();
+<<<<<<< HEAD
                 
+=======
+
+>>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
             if (tripData) {
                 setDriverId(tripData.user_id);
             }
@@ -76,14 +86,30 @@ const Chat = ({ tripId, bookingId, onBack, currentUserId }) => {
 
             const { data: msgs, error } = await query;
 
+            if (bookingId) {
+                query = query.eq('booking_id', bookingId);
+            } else if (tripId) {
+                query = query.eq('trip_id', tripId);
+            }
+
+            const { data: msgs, error } = await query;
+
             if (error) throw error;
+<<<<<<< HEAD
             
+=======
+
+>>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
             // Fetch profiles for sender names
             if (msgs && msgs.length > 0) {
                 const uniqueSenderIds = [...new Set(msgs.map(m => m.sender_id))];
                 await fetchProfiles(uniqueSenderIds);
             }
+<<<<<<< HEAD
             
+=======
+
+>>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
             setMessages(msgs || []);
         } catch (error) {
             console.error('Error fetching chat data:', error);
@@ -95,13 +121,21 @@ const Chat = ({ tripId, bookingId, onBack, currentUserId }) => {
 
     const fetchProfiles = async (userIds) => {
         if (!userIds || userIds.length === 0) return;
+<<<<<<< HEAD
         
+=======
+
+>>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
         try {
             const { data } = await supabase
                 .from('profiles')
                 .select('id, full_name')
                 .in('id', userIds);
+<<<<<<< HEAD
                 
+=======
+
+>>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
             if (data) {
                 setSenderProfiles(prev => {
                     const newProfiles = { ...prev };
@@ -125,7 +159,7 @@ const Chat = ({ tripId, bookingId, onBack, currentUserId }) => {
     }, [messages]);
 
     const handleSendMessage = async (e) => {
-        e.preventDefault();
+        e?.preventDefault();
         if (!newMessage.trim()) return;
 
         const messageData = {
@@ -138,16 +172,66 @@ const Chat = ({ tripId, bookingId, onBack, currentUserId }) => {
             messageData.booking_id = bookingId;
         }
 
+        if (bookingId) {
+            messageData.booking_id = bookingId;
+        }
+
+        const msgText = newMessage.trim();
+        setNewMessage(''); // Clear input immediately for better UX
+        
+        // Optimistic update
+        const optimisticMsg = {
+            id: `temp-${Date.now()}`,
+            ...messageData,
+            created_at: new Date().toISOString()
+        };
+        setMessages(prev => [...prev, optimisticMsg]);
+
         try {
             const { error } = await supabase
                 .from('messages')
                 .insert([messageData]);
 
             if (error) throw error;
-            setNewMessage('');
         } catch (error) {
             console.error('Error sending message:', error);
             toast.error('Failed to send message');
+            // Remove optimistic message if failed
+            setMessages(prev => prev.filter(m => m.id !== optimisticMsg.id));
+            setNewMessage(msgText); // Restore input
+        }
+    };
+
+    const handleQuickReplySend = async (text) => {
+        const messageData = {
+            trip_id: tripId,
+            sender_id: currentUserId,
+            content: text.trim()
+        };
+
+        if (bookingId) {
+            messageData.booking_id = bookingId;
+        }
+        
+        // Optimistic update
+        const optimisticMsg = {
+            id: `temp-${Date.now()}`,
+            ...messageData,
+            created_at: new Date().toISOString()
+        };
+        setMessages(prev => [...prev, optimisticMsg]);
+
+        try {
+            const { error } = await supabase
+                .from('messages')
+                .insert([messageData]);
+
+            if (error) throw error;
+        } catch (error) {
+            console.error('Error sending quick reply:', error);
+            toast.error('Failed to send message');
+            // Remove optimistic message if failed
+            setMessages(prev => prev.filter(m => m.id !== optimisticMsg.id));
         }
     };
 
@@ -156,14 +240,28 @@ const Chat = ({ tripId, bookingId, onBack, currentUserId }) => {
         return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     };
 
+    const isCurrentUserDriver = currentUserId === driverId;
+    const driverQuickReplies = [
+        "I've arrived! 📍",
+        "Stuck in traffic 🚦",
+        "Be there in 5 mins ⏳"
+    ];
+    const passengerQuickReplies = [
+        "I'm here! 🏃",
+        "Give me 2 mins ⏳",
+        "Are you nearby? 🚕"
+    ];
+
     return (
         <div className="chat-container">
             <header className="chat-header">
                 <button className="back-btn" onClick={onBack}>
-                    <ArrowLeft size={24} />
+                    <ArrowLeft size={20} />
                 </button>
                 <div className="header-info">
-                    <UserCircle size={32} className="user-avatar" />
+                    <div className="user-avatar-wrapper">
+                        <UserCircle size={28} />
+                    </div>
                     <div className="text-info">
                         <h3>Trip Chat</h3>
                         <p>Real-time messaging</p>
@@ -173,10 +271,23 @@ const Chat = ({ tripId, bookingId, onBack, currentUserId }) => {
 
             <div className="messages-list">
                 {loading ? (
+<<<<<<< HEAD
                     <div className="loading-spinner">Loading...</div>
                 ) : messages.length === 0 ? (
                     <div className="empty-chat">
                         <p>No messages yet. Send the first message!</p>
+=======
+                    <div className="loading-spinner">Loading messages...</div>
+                ) : messages.length === 0 ? (
+                    <div className="empty-chat">
+                        <div className="empty-chat-icon">
+                            <MessageSquare size={48} />
+                        </div>
+                        <div>
+                            <p style={{ fontWeight: '700', color: '#1e293b', marginBottom: '0.25rem', fontSize: '1.1rem' }}>No messages yet</p>
+                            <p style={{ margin: 0 }}>Send a message to start the conversation!</p>
+                        </div>
+>>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                     </div>
                 ) : (
                     messages.map((msg) => {
@@ -184,7 +295,11 @@ const Chat = ({ tripId, bookingId, onBack, currentUserId }) => {
                         const isDriver = msg.sender_id === driverId;
                         const senderName = isMine ? 'You' : (senderProfiles[msg.sender_id] || 'User');
                         const role = isDriver ? 'Driver' : 'Passenger';
+<<<<<<< HEAD
                         
+=======
+
+>>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                         return (
                             <div
                                 key={msg.id}
@@ -193,7 +308,11 @@ const Chat = ({ tripId, bookingId, onBack, currentUserId }) => {
                                 {!isMine && (
                                     <div className="msg-sender-info">
                                         <span className="msg-name">{senderName}</span>
+<<<<<<< HEAD
                                         <span className={`msg-role ${isDriver ? 'role-driver' : 'role-passenger'}`}>• {role}</span>
+=======
+                                        <span className={`msg-role ${isDriver ? 'role-driver' : 'role-passenger'}`}>{role}</span>
+>>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                                     </div>
                                 )}
                                 <div className="message-content">
@@ -207,17 +326,33 @@ const Chat = ({ tripId, bookingId, onBack, currentUserId }) => {
                 <div ref={messagesEndRef} />
             </div>
 
-            <form className="chat-input-form" onSubmit={handleSendMessage}>
-                <input
-                    type="text"
-                    placeholder="Type a message..."
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                />
-                <button type="submit" disabled={!newMessage.trim()}>
-                    <Send size={20} />
-                </button>
-            </form>
+            <div className="chat-footer">
+                {!loading && driverId && (
+                    <div className="quick-replies-container">
+                        {(isCurrentUserDriver ? driverQuickReplies : passengerQuickReplies).map((reply, idx) => (
+                            <button
+                                key={idx}
+                                className="quick-reply-pill"
+                                onClick={() => handleQuickReplySend(reply)}
+                            >
+                                {reply}
+                            </button>
+                        ))}
+                    </div>
+                )}
+                
+                <form className="chat-input-form" onSubmit={handleSendMessage}>
+                    <input
+                        type="text"
+                        placeholder="Type a message..."
+                        value={newMessage}
+                        onChange={(e) => setNewMessage(e.target.value)}
+                    />
+                    <button type="submit" disabled={!newMessage.trim()} className="send-btn">
+                        <Send size={18} strokeWidth={2.5} />
+                    </button>
+                </form>
+            </div>
         </div>
     );
 };

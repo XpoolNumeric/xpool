@@ -378,13 +378,13 @@ const MyBookings = ({ onBack, onViewDetails, onPaymentRequired }) => {
                                             if (onViewDetails) onViewDetails(booking);
                                         }}>
                                             {/* Active Trip Banner */}
-                                            <div className="active-trip-banner" style={{ marginTop: '1rem', marginBottom: '1rem', padding: '0.75rem', backgroundColor: '#eef2ff', borderRadius: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#4f46e5', fontWeight: '600' }}>
-                                                <div className="pulse-dot" style={{ width: '10px', height: '10px', backgroundColor: '#4f46e5', borderRadius: '50%', animation: 'pulse 2s infinite' }}></div>
+                                            <div className="active-trip-banner">
+                                                <div className="pulse-dot"></div>
                                                 <span>{booking.trips?.status === 'in_progress' ? 'Your trip is active now' : 'Your trip is approved'}</span>
                                             </div>
 
                                             {/* Map Placeholder */}
-                                            <div className="mini-map-container" style={{ marginBottom: '1rem' }}>
+                                            <div className="mini-map-container">
                                                 <div className="mini-map-overlay">
                                                     <MapPin size={24} className="map-pin-icon" />
                                                     <span>View Route on Map</span>
@@ -406,14 +406,14 @@ const MyBookings = ({ onBack, onViewDetails, onPaymentRequired }) => {
 
                                             {/* Driver Info Card */}
                                             {booking.driver_details && (
-                                                <div className="driver-info-card" style={{ marginBottom: '1rem' }}>
-                                                    <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                                                <div className="driver-info-card">
+                                                    <div className="card-header">
+                                                        <div className="card-header-left">
                                                             <User size={18} />
-                                                            <h3 style={{ margin: 0, fontSize: '0.9rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Driver Information</h3>
+                                                            <h3>Driver Information</h3>
                                                         </div>
                                                         {(booking.status === 'pending' || booking.status === 'approved') && (
-                                                            <button 
+                                                            <button
                                                                 className="mini-chat-btn"
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
@@ -458,7 +458,7 @@ const MyBookings = ({ onBack, onViewDetails, onPaymentRequired }) => {
 
                                             {/* OTP Display — visible for approved AND in_progress (passenger needs to show driver) */}
                                             {booking.otp && booking.trips?.status !== 'completed' && (
-                                                <div className="otp-section" style={{ marginBottom: '1rem' }}>
+                                                <div className="otp-section">
                                                     <span className="otp-label">Your Trip OTP:</span>
                                                     <span className="otp-code">{booking.otp}</span>
                                                     <span className="otp-note">
@@ -471,9 +471,9 @@ const MyBookings = ({ onBack, onViewDetails, onPaymentRequired }) => {
 
                                             {/* Waiting for OTP — trip is today but driver hasn't generated OTP yet */}
                                             {!booking.otp && booking.status === 'approved' && booking.trips?.status !== 'in_progress' && booking.trips?.status !== 'completed' && isTripToday(booking.trips?.travel_date) && (
-                                                <div className="otp-section" style={{ marginBottom: '1rem', background: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)', border: '1px solid #f59e0b', borderRadius: '12px', padding: '16px', textAlign: 'center' }}>
-                                                    <span className="otp-label" style={{ color: '#b45309', fontSize: '0.85rem', fontWeight: 600 }}>⏳ Waiting for OTP</span>
-                                                    <span className="otp-note" style={{ color: '#92400e', fontSize: '0.78rem', marginTop: '4px', display: 'block' }}>
+                                                <div className="otp-section otp-section--waiting">
+                                                    <span className="otp-label">⏳ Waiting for OTP</span>
+                                                    <span className="otp-note">
                                                         Your driver will generate the OTP before the trip starts. You'll be notified automatically.
                                                     </span>
                                                 </div>
@@ -481,19 +481,17 @@ const MyBookings = ({ onBack, onViewDetails, onPaymentRequired }) => {
 
                                             {/* ✅ FIX: Pay Now — uses pre-computed amount, no inline IIFE or array checks */}
                                             {booking.status === 'approved' && booking.trips?.status !== 'completed' && (
-                                                <div className="active-trip-pay-section" style={{ marginTop: '0', paddingTop: '1rem', borderTop: '1px solid #e2e8f0' }}>
+                                                <div className="active-trip-pay-section">
                                                     <button
-                                                        className={`pay-now-btn ${booking.ride_payment?.payment_status === 'paid' ? 'paid' : ''}`}
+                                                        className="pay-now-btn"
                                                         onClick={(e) => {
                                                             e.stopPropagation();
                                                             const rp = booking.ride_payment;
-                                                            if (rp?.payment_status === 'paid') return; // Already paid
-                                                            
                                                             if (onPaymentRequired) {
                                                                 onPaymentRequired({
                                                                     payment_id: rp?.id,
                                                                     booking_id: booking.id,
-                                                                    amount: booking.computed_total,
+                                                                    amount: booking.computed_total, // ✅ clean pre-computed value
                                                                     cashfree_order_id: rp?.cashfree_order_id
                                                                 });
                                                             } else if (onViewDetails) {
@@ -501,11 +499,8 @@ const MyBookings = ({ onBack, onViewDetails, onPaymentRequired }) => {
                                                             }
                                                         }}
                                                     >
-                                                        {booking.ride_payment?.payment_status === 'paid' ? (
-                                                            <>✔ PAID</>
-                                                        ) : (
-                                                            <>Pay ₹{booking.computed_total}</>
-                                                        )}
+                                                        {/* ✅ FIX: single reliable source, no IIFE fallback needed */}
+                                                        Pay ₹{booking.computed_total}
                                                     </button>
                                                 </div>
                                             )}
@@ -549,7 +544,7 @@ const MyBookings = ({ onBack, onViewDetails, onPaymentRequired }) => {
                                                             <span>{booking.driver_name}</span>
                                                         </div>
                                                         {(booking.status === 'pending' || booking.status === 'approved') && (
-                                                            <button 
+                                                            <button
                                                                 className="mini-chat-btn"
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();

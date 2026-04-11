@@ -23,7 +23,7 @@ class PaymentService {
                         const errorDetails = await error.context.json();
                         errorMessage = errorDetails?.error || errorMessage;
                     }
-                } catch(e) { /* ignore */ }
+                } catch (e) { /* ignore */ }
                 throw new Error(errorMessage);
             }
 

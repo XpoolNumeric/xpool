@@ -90,6 +90,7 @@ serve(async (req) => {
             
             if (insertErr || !newPayment) throw new Error('Failed to create cash payment record: ' + insertErr?.message)
             
+<<<<<<< HEAD
             paymentId = newPayment.id;
 
             // ✅ Update booking status server-side
@@ -97,6 +98,9 @@ serve(async (req) => {
                 .from('booking_requests')
                 .update({ status: 'completed', drop_status: 'completed', dropped_at: new Date().toISOString() })
                 .eq('id', booking.id);
+=======
+            paymentId = newPayment.id; // Just created and marked paid
+>>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
 
             // --> DEDUCT COMMISSION <--
             try {
@@ -113,6 +117,10 @@ serve(async (req) => {
                     p_description: 'Commission Deducted for Cash Trip (Verify Flow)'
                 });
                 if (rpcErr) console.error('Wallet deduction RPC error:', rpcErr);
+<<<<<<< HEAD
+=======
+                else console.log('Commission deducted successfully:', rpcData);
+>>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
             } catch (err) {
                 console.error('Wallet deduction threw error:', err);
             }
@@ -134,6 +142,7 @@ serve(async (req) => {
             if (updateError) throw updateError;
             paymentId = maybePayment.id;
 
+<<<<<<< HEAD
             // ✅ Update booking status server-side
             await supabaseAdmin
                 .from('booking_requests')
@@ -141,6 +150,8 @@ serve(async (req) => {
                 .eq('trip_id', maybePayment.trip_id)
                 .eq('passenger_id', maybePayment.passenger_id);
 
+=======
+>>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
             // --> DEDUCT COMMISSION <--
             const comAmount = Number(maybePayment.commission_amount || 0);
             if (comAmount > 0) {
@@ -158,6 +169,10 @@ serve(async (req) => {
                         p_description: 'Commission Deducted for Cash Trip (Verify Flow)'
                     });
                     if (rpcErr) console.error('Wallet deduction RPC error:', rpcErr);
+<<<<<<< HEAD
+=======
+                    else console.log('Commission deducted successfully:', rpcData);
+>>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                 } catch (err) {
                     console.error('Wallet deduction threw error:', err);
                 }

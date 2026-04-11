@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { motion } from 'framer-motion';
 import logo from '../../assets/logo_real.jpg';
 import onboardingBottom from '../../assets/onboarding-bottom.png';
 import './Splash.css';
@@ -9,7 +10,7 @@ const Splash = ({ onFinish, isReady }) => {
   useEffect(() => {
     const timer = setTimeout(() => {
       setMinTimeElapsed(true);
-    }, 1500);
+    }, 2000);
 
     return () => clearTimeout(timer);
   }, []);
@@ -18,32 +19,59 @@ const Splash = ({ onFinish, isReady }) => {
     if (minTimeElapsed && isReady) {
       console.log('[Splash] Timer elapsed and app ready. Finishing splash...');
       onFinish();
-    } else {
-      console.log(`[Splash] Waiting... Timer: ${minTimeElapsed}, Ready: ${isReady}`);
     }
   }, [minTimeElapsed, isReady, onFinish]);
 
   return (
-    <div className="splash-container">
-      <div className="splash-content">
-        <div className="logo-wrapper">
-          <img src={logo} alt="XPOOL Logo" className="splash-logo" />
-        </div>
-        <h1 className="app-name">XPOOL</h1>
-        <p className="tagline">Where Every Ride Counts</p>
+    <div className="splash-premium-container">
+      <div className="splash-ambient-blob blob-1"></div>
+      <div className="splash-ambient-blob blob-2"></div>
+
+      <div className="splash-content-layer">
+        <motion.div
+          initial={{ opacity: 0, y: 30, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+          className="splash-brand-center"
+        >
+          <div className="splash-logo-glass">
+            <img src={logo} alt="XPOOL Logo" className="splash-logo-img" />
+          </div>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.3, duration: 0.8 }}
+            className="splash-text-group"
+          >
+            <p className="splash-caption">India Moves On</p>
+            <h1 className="splash-heading">
+              <span className="text-amber">X</span>pool
+            </h1>
+            <p className="splash-tagline">Where Every Ride Counts</p>
+          </motion.div>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.6, duration: 0.8 }}
+          className="splash-loader-area"
+        >
+          <div className="premium-loader"></div>
+          <p className="loading-text">Getting things ready...</p>
+        </motion.div>
       </div>
 
-      <div className="splash-footer">
-        <div className="loading-dots">
-          <span></span><span></span><span></span><span></span>
-        </div>
-        <div className="splash-bottom-image-container">
-          <img src={onboardingBottom} alt="City Silhouette" className="splash-bottom-image" />
-        </div>
-      </div>
+      <motion.div
+        initial={{ y: 50, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ delay: 0.2, duration: 1, ease: "easeOut" }}
+        className="splash-city-footer"
+      >
+        <img src={onboardingBottom} alt="City Silhouette" className="city-silhouette-img" />
+      </motion.div>
     </div>
   );
 };
 
 export default Splash;
-

@@ -218,10 +218,11 @@ const OTPVerificationScreen = ({ trip, onVerified, onBack }) => {
     return (
         <div className="otp-verification-container animate-page-in">
             <header className="otp-header">
-                <button className="back-btn" onClick={onBack}>
-                    <ArrowLeft size={24} />
+                <button className="back-btn" onClick={onBack} aria-label="Go back">
+                    <ArrowLeft size={22} />
                 </button>
                 <h1>Verify Passengers</h1>
+                <div style={{ width: 40 }} />
             </header>
 
             <div className="otp-content">

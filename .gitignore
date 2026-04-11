@@ -1,4 +1,4 @@
-node_modules/
+**/node_modules/
 dist/
 .env
 .env.local
@@ -12,6 +12,7 @@ android/.idea/
 android/app/release.keystore
 .cursor/
 
+<<<<<<< HEAD
 # Temp/debug files
 checkDB*.js
 db_out.json
@@ -25,3 +26,20 @@ admin/check_*.mjs
 admin/scan_db.mjs
 admin/seed_trip_data.mjs
 admin/test_query*.mjs
+=======
+# Build Artifacts
+*.apk
+*.zip
+
+# Junk and Temp Scripts
+checkDB*.js
+db_out.json
+drivers_out.json
+push_log.txt
+push_error.txt
+syncWallet.js
+tmp_*.js
+update_rpcs.sql
+schema.sql
+xpooladminpanel-main/
+>>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)

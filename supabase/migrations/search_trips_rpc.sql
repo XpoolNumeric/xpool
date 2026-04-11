@@ -14,6 +14,7 @@ CREATE OR REPLACE FUNCTION search_trips(
 )
 RETURNS TABLE (
   id UUID,
+  user_id UUID,
   driver_name TEXT,
   driver_avatar TEXT,
   vehicle_type TEXT,
@@ -34,10 +35,19 @@ RETURNS TABLE (
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
+DECLARE
+  from_city TEXT;
+  to_city TEXT;
 BEGIN
+  -- Extract city names (first comma-separated part) for matching
+  -- This prevents partial matches on state/country names in full addresses
+  from_city := LOWER(TRIM(SPLIT_PART(search_from, ',', 1)));
+  to_city := LOWER(TRIM(SPLIT_PART(search_to, ',', 1)));
+
   RETURN QUERY
   SELECT
     t.id,
+    t.user_id,
     COALESCE(p.full_name, 'Driver') AS driver_name,
     p.avatar_url AS driver_avatar,
     t.vehicle_type,
@@ -59,10 +69,17 @@ BEGIN
   WHERE
     t.status = 'active'
     AND t.available_seats > 0
-    -- Fuzzy match on from_location (case-insensitive partial match)
-    AND LOWER(t.from_location) LIKE '%' || LOWER(search_from) || '%'
-    -- Fuzzy match on to_location (case-insensitive partial match)
-    AND LOWER(t.to_location) LIKE '%' || LOWER(search_to) || '%'
+    -- City-level match on from_location
+    -- Skip filter if search_from is "current location" or empty (let destination filter handle it)
+    AND (
+      from_city = ''
+      OR from_city = 'current location'
+      OR LOWER(TRIM(SPLIT_PART(t.from_location, ',', 1))) LIKE '%' || from_city || '%'
+    )
+    -- City-level match on to_location (REQUIRED — must always match)
+    -- Guard: if to_city is empty, match nothing (prevent '%%' matching everything)
+    AND to_city <> ''
+    AND LOWER(TRIM(SPLIT_PART(t.to_location, ',', 1))) LIKE '%' || to_city || '%'
     -- Optional date filter
     AND (search_date IS NULL OR t.travel_date = search_date)
     -- Optional vehicle type filter

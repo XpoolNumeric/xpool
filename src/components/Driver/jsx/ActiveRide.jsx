@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, MapPin, Navigation2, Phone, MessageCircle, AlertTriangle, CheckCircle, Clock, ExternalLink, ShieldAlert, X, User, LogOut, CreditCard, Banknote, ChevronRight, Loader2 } from 'lucide-react';
+import { ArrowLeft, MapPin, Navigation2, Phone, MessageCircle, AlertTriangle, CheckCircle, Clock, ExternalLink, ShieldAlert, X, User, CreditCard, Banknote, ChevronRight, Loader2 } from 'lucide-react';
 import { supabase } from '../../../supabaseClient';
 import toast from 'react-hot-toast';
-import { loadGoogleMapsScript, initializeMap, createRoute, addMarker, getCurrentLocation } from '../../../utils/googleMapsHelper';
+import { loadGoogleMapsScript, initializeMap, createRoute, addMarker } from '../../../utils/googleMapsHelper';
 import Chat from '../../common/Chat';
 import UnifiedRatingModal from '../../common/jsx/UnifiedRatingModal';
 import { liveTrackingService } from '../../../services/tracking/LiveTrackingService';
 import '../css/ActiveRide.css';
 
-const ActiveRide = ({ trip: initialTrip, onBack, onLogout }) => {
+const ActiveRide = ({ trip: initialTrip, onBack }) => {
     const [trip, setTrip] = useState(initialTrip);
     const [passengers, setPassengers] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -35,6 +35,10 @@ const ActiveRide = ({ trip: initialTrip, onBack, onLogout }) => {
     const [isFinishing, setIsFinishing] = useState(false);
     const swipeRef = useRef(null);
     const swipeContainerRef = useRef(null);
+
+    // Bottom sheet state
+    const [sheetHeight, setSheetHeight] = useState(45); // percent of viewport
+    const sheetRef = useRef(null);
 
     const mapInstanceRef = useRef(null);
 
@@ -173,6 +177,7 @@ const ActiveRide = ({ trip: initialTrip, onBack, onLogout }) => {
             // Wait for script (already loading via App.jsx Provider)
             await loadGoogleMapsScript(apiKey);
             
+<<<<<<< HEAD
             // Double check container exists
             const container = document.getElementById('active-ride-map');
             if (!container) return;
@@ -182,6 +187,15 @@ const ActiveRide = ({ trip: initialTrip, onBack, onLogout }) => {
 
             const currentLocation = await getCurrentLocation();
             const map = initializeMap('active-ride-map', currentLocation, 14);
+=======
+            const container = document.getElementById('active-ride-map');
+            if (!container) return;
+
+            container.innerHTML = '';
+
+            // Start with a neutral India-wide view
+            const map = initializeMap('active-ride-map', { lat: 20.5937, lng: 78.9629 }, 6);
+>>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
             mapInstanceRef.current = map;
 
             const route = await createRoute(
@@ -190,12 +204,93 @@ const ActiveRide = ({ trip: initialTrip, onBack, onLogout }) => {
                 trip.to_location
             );
 
+            // Fit the map to show the full route centered, with padding for header + bottom sheet
+            if (route.route && route.route.routes[0]) {
+                const bounds = route.route.routes[0].bounds;
+                // top: header + pill, bottom: bottom sheet (45vh), left/right margins
+                map.fitBounds(bounds, { top: 120, bottom: window.innerHeight * 0.45, left: 30, right: 30 });
+            }
+
             setRouteInfo(route);
             setMapLoaded(true);
         } catch (error) {
             console.error('Map error:', error);
         }
     };
+
+    // Recenter map to fit route bounds
+    const recenterMap = () => {
+        if (!mapInstanceRef.current || !routeInfo?.route) return;
+        const bounds = routeInfo.route.routes[0].bounds;
+        mapInstanceRef.current.fitBounds(bounds, {
+            top: 120,
+            bottom: window.innerHeight * (sheetHeight / 100),
+            left: 30,
+            right: 30
+        });
+    };
+
+    // ── Bottom Sheet Touch Handlers ──
+    // Unified: scroll content when expanded, drag sheet when at scroll boundary
+    const sheetTouchRef = useRef({ startY: 0, startHeight: 0, isDragging: false });
+    const scrollContentRef = useRef(null);
+
+    const handleSheetTouchStart = (e) => {
+        const y = e.touches ? e.touches[0].clientY : e.clientY;
+        sheetTouchRef.current = {
+            startY: y,
+            startHeight: sheetHeight,
+            isDragging: false
+        };
+    };
+
+    const handleSheetTouchMove = (e) => {
+        const y = e.touches ? e.touches[0].clientY : e.clientY;
+        const deltaY = sheetTouchRef.current.startY - y; // positive = swiping up
+        const scrollEl = scrollContentRef.current;
+        const atTop = !scrollEl || scrollEl.scrollTop <= 0;
+        const atBottom = scrollEl && (scrollEl.scrollTop + scrollEl.clientHeight >= scrollEl.scrollHeight - 2);
+
+        // Determine if we should drag the sheet or scroll content
+        if (!sheetTouchRef.current.isDragging) {
+            // Start dragging if: swiping up from non-expanded, OR swiping down and content is at scroll top
+            if ((deltaY > 5 && sheetHeight < 83) || (deltaY < -5 && atTop)) {
+                sheetTouchRef.current.isDragging = true;
+            }
+        }
+
+        if (sheetTouchRef.current.isDragging) {
+            e.preventDefault();
+            const deltaPercent = (deltaY / window.innerHeight) * 100;
+            const newHeight = Math.min(Math.max(sheetTouchRef.current.startHeight + deltaPercent, 18), 85);
+            setSheetHeight(newHeight);
+        }
+        // Otherwise normal scroll happens inside .sheet-scroll-content
+    };
+
+    const handleSheetTouchEnd = () => {
+        if (sheetTouchRef.current.isDragging) {
+            sheetTouchRef.current.isDragging = false;
+            // Snap to nearest detent
+            if (sheetHeight < 30) setSheetHeight(18);
+            else if (sheetHeight < 65) setSheetHeight(45);
+            else setSheetHeight(85);
+        }
+    };
+
+    // Attach non-passive touch listeners so e.preventDefault() works
+    useEffect(() => {
+        const el = sheetRef.current;
+        if (!el) return;
+        el.addEventListener('touchstart', handleSheetTouchStart, { passive: true });
+        el.addEventListener('touchmove', handleSheetTouchMove, { passive: false });
+        el.addEventListener('touchend', handleSheetTouchEnd, { passive: true });
+        return () => {
+            el.removeEventListener('touchstart', handleSheetTouchStart);
+            el.removeEventListener('touchmove', handleSheetTouchMove);
+            el.removeEventListener('touchend', handleSheetTouchEnd);
+        };
+    });
 
     // ── Drop Flow ──────────────────────────────────────────────
     const initiateDropPassenger = (passenger) => {
@@ -444,58 +539,64 @@ const ActiveRide = ({ trip: initialTrip, onBack, onLogout }) => {
 
     return (
         <div className="active-ride-container animate-page-in">
+            {/* Full-screen map base layer */}
+            <div className="map-section">
+                <div id="active-ride-map" className="map-container"></div>
+                <div className="map-vignette" />
+            </div>
+
+            {/* Floating header over map */}
             <header className="ride-header">
                 <button className="back-btn" onClick={onBack}>
                     <ArrowLeft size={24} />
                 </button>
                 <h1>Active Ride</h1>
-                <div style={{ display: 'flex', gap: '8px' }}>
+                <div className="header-right-actions">
                     <button className={`sos-btn ${sosActive ? 'active' : ''}`} onClick={handleSOS}>
                         <ShieldAlert size={20} />
                     </button>
-                    {onLogout && (
-                        <button
-                            className="logout-btn-header"
-                            onClick={onLogout}
-                            style={{
-                                background: 'rgba(239, 68, 68, 0.1)',
-                                border: '1px solid rgba(239, 68, 68, 0.3)',
-                                borderRadius: '12px',
-                                padding: '8px 12px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                                color: '#ef4444',
-                                fontSize: '14px',
-                                fontWeight: '500',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s'
-                            }}
-                        >
-                            <LogOut size={18} />
-                            Logout
-                        </button>
-                    )}
                 </div>
             </header>
 
-            <div className="map-section">
-                <div id="active-ride-map" className="map-container"></div>
-                {routeInfo && (
-                    <div className="route-info-card">
-                        <div className="route-stat">
-                            <Navigation2 size={16} />
-                            <span>{routeInfo.distance}</span>
-                        </div>
-                        <div className="route-stat">
-                            <Clock size={16} />
-                            <span>{routeInfo.duration}</span>
-                        </div>
+            {/* Route info pill floating on map */}
+            {routeInfo && (
+                <div className="route-info-card">
+                    <div className="route-stat">
+                        <Navigation2 size={16} />
+                        <span>{routeInfo.distance}</span>
                     </div>
-                )}
-            </div>
+                    <div className="route-info-divider" />
+                    <div className="route-stat">
+                        <Clock size={16} />
+                        <span>{routeInfo.duration}</span>
+                    </div>
+                </div>
+            )}
 
-            <div className="ride-content">
+            {/* Recenter map button */}
+            <button 
+                className="recenter-btn" 
+                onClick={recenterMap} 
+                aria-label="Recenter map"
+                style={{ bottom: `calc(${sheetHeight}vh + 1rem)` }}
+            >
+                <Navigation2 size={18} />
+            </button>
+
+            {/* Draggable bottom sheet */}
+            <div
+                ref={sheetRef}
+                className="ride-content"
+                style={{ height: `${sheetHeight}vh` }}
+                onMouseDown={handleSheetTouchStart}
+                onMouseMove={handleSheetTouchMove}
+                onMouseUp={handleSheetTouchEnd}
+            >
+                {/* Drag handle */}
+                <div className="sheet-drag-handle">
+                    <div className="sheet-handle-bar" />
+                </div>
+                <div className="sheet-scroll-content" ref={scrollContentRef}>
                 <div className="navigation-card">
                     <div className="route-info-flow">
                         <div className="stop">
@@ -556,7 +657,7 @@ const ActiveRide = ({ trip: initialTrip, onBack, onLogout }) => {
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="p-actions" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                    <div className="p-actions">
                                         {isDropped ? (
                                             <div className="dropped-badge">
                                                 <CheckCircle size={16} />
@@ -593,7 +694,8 @@ const ActiveRide = ({ trip: initialTrip, onBack, onLogout }) => {
                         })
                     )}
                 </div>
-            </div>
+                </div> {/* end sheet-scroll-content */}
+            </div> {/* end ride-content */}
 
             {/* Swipe to Finish Ride */}
             {trip.status === 'in_progress' && (
@@ -690,7 +792,10 @@ const ActiveRide = ({ trip: initialTrip, onBack, onLogout }) => {
                         <div className="modal-actions" style={{ flexDirection: 'column', gap: '12px' }}>
                             <button
                                 className="modal-btn confirm"
+<<<<<<< HEAD
                                 style={{ width: '100%', display: 'flex', justifyContent: 'center', gap: '8px' }}
+=======
+>>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                                 onClick={() => {
                                     setDropOptionsVisible(false);
                                     checkOnlinePaymentAndDrop(dropTarget);
@@ -702,7 +807,10 @@ const ActiveRide = ({ trip: initialTrip, onBack, onLogout }) => {
                             </button>
                             <button
                                 className="modal-btn cash"
+<<<<<<< HEAD
                                 style={{ width: '100%', display: 'flex', justifyContent: 'center', gap: '8px', background: '#f59e0b', color: '#fff', border: 'none', padding: '12px', borderRadius: '8px', fontWeight: '500' }}
+=======
+>>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                                 onClick={() => {
                                     setDropOptionsVisible(false);
                                     setCashConfirmVisible(true);
@@ -714,7 +822,10 @@ const ActiveRide = ({ trip: initialTrip, onBack, onLogout }) => {
                             </button>
                             <button
                                 className="modal-btn cancel"
+<<<<<<< HEAD
                                 style={{ width: '100%', marginTop: '4px' }}
+=======
+>>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                                 onClick={() => { setDropOptionsVisible(false); setDropTarget(null); }}
                             >
                                 Cancel Drop

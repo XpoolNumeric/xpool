@@ -54,6 +54,26 @@ export const loadGoogleMapsScript = (apiKey) => {
  * @param {number} zoom - Initial zoom level
  * @returns {google.maps.Map}
  */
+// Ultra-Premium Minimalist Monochrome Map Style
+const customMapStyle = [
+    { elementType: "geometry", stylers: [{ color: "#f8f9fa" }] },
+    { elementType: "labels.icon", stylers: [{ visibility: "off" }] },
+    { elementType: "labels.text.fill", stylers: [{ color: "#8b8d96" }] },
+    { elementType: "labels.text.stroke", stylers: [{ color: "#ffffff" }, { weight: 4 }] },
+    { featureType: "poi", stylers: [{ visibility: "off" }] },
+    { featureType: "transit", stylers: [{ visibility: "off" }] },
+    { featureType: "water", elementType: "geometry", stylers: [{ color: "#e2e8f0" }] },
+    { featureType: "road", elementType: "geometry.fill", stylers: [{ color: "#ffffff" }] },
+    { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#e2e8f0" }] },
+    { featureType: "road.arterial", elementType: "geometry.fill", stylers: [{ color: "#ffffff" }] },
+    { featureType: "road.arterial", elementType: "geometry.stroke", stylers: [{ color: "#e2e8f0" }] },
+    { featureType: "road.highway", elementType: "geometry.fill", stylers: [{ color: "#ffffff" }, { weight: 2 }] },
+    { featureType: "road.highway", elementType: "geometry.stroke", stylers: [{ color: "#cbd5e1" }] },
+    { featureType: "road.highway.controlled_access", elementType: "geometry.fill", stylers: [{ color: "#ffffff" }, { weight: 2.5 }] },
+    { featureType: "road.highway.controlled_access", elementType: "geometry.stroke", stylers: [{ color: "#cbd5e1" }] },
+    { featureType: "administrative", elementType: "labels.text.fill", stylers: [{ color: "#64748b" }] }
+];
+
 export const initializeMap = (containerId, center = { lat: 20.5937, lng: 78.9629 }, zoom = 5) => {
     const mapContainer = document.getElementById(containerId);
 
@@ -65,10 +85,11 @@ export const initializeMap = (containerId, center = { lat: 20.5937, lng: 78.9629
         center,
         zoom,
         mapId: 'XPOOL_MAP_ID', // Required for AdvancedMarkerElement
-        mapTypeControl: true,
+        mapTypeControl: false,
         streetViewControl: false,
-        fullscreenControl: true,
+        fullscreenControl: false,
         zoomControl: true,
+        styles: customMapStyle,
     });
 
     return map;
@@ -86,10 +107,19 @@ export const createRoute = async (map, origin, destination, waypoints = []) => {
     const directionsService = new window.google.maps.DirectionsService();
     const directionsRenderer = new window.google.maps.DirectionsRenderer({
         map,
-        suppressMarkers: false,
+        suppressMarkers: true,
         polylineOptions: {
+<<<<<<< HEAD
             strokeColor: '#FFD700',
             strokeWeight: 6,
+=======
+            strokeColor: '#f59e0b',
+            strokeWeight: 6,
+            strokeOpacity: 1,
+            strokeLineCap: 'round',
+            strokeLineJoin: 'round',
+            zIndex: 50
+>>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
         },
     });
 
@@ -109,6 +139,61 @@ export const createRoute = async (map, origin, destination, waypoints = []) => {
                 const route = result.routes[0];
                 const leg = route.legs[0];
 
+                // Create custom dot markers using DOM elements (reliable with AdvancedMarkerElement)
+                const createDotMarker = (isDestination = false) => {
+                    const container = document.createElement('div');
+                    container.style.position = 'relative';
+                    container.style.width = '24px';
+                    container.style.height = '24px';
+                    container.style.display = 'flex';
+                    container.style.alignItems = 'center';
+                    container.style.justifyContent = 'center';
+
+                    // Pulsing ripple for destination
+                    if (isDestination) {
+                        const pulse = document.createElement('div');
+                        pulse.style.cssText = 'position:absolute;width:100%;height:100%;background:rgba(245,158,11,0.4);border-radius:50%;animation:marker-pulse 2s infinite;';
+                        container.appendChild(pulse);
+                    }
+
+                    const dot = document.createElement('div');
+                    dot.style.cssText = `width:16px;height:16px;background:${isDestination ? '#f59e0b' : '#111827'};border:3px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.3);position:relative;z-index:2;`;
+                    container.appendChild(dot);
+
+                    // Add global animation style if not exists
+                    if (!document.getElementById('marker-animation-style')) {
+                        const style = document.createElement('style');
+                        style.id = 'marker-animation-style';
+                        style.textContent = `
+                            @keyframes marker-pulse {
+                                0% { transform: scale(1); opacity: 1; }
+                                100% { transform: scale(3); opacity: 0; }
+                            }
+                        `;
+                        document.head.appendChild(style);
+                    }
+
+                    return container;
+                };
+
+                // Add start and end markers
+                if (window.google.maps.marker && window.google.maps.marker.AdvancedMarkerElement) {
+                    new window.google.maps.marker.AdvancedMarkerElement({
+                        map, position: leg.start_location, title: 'Start', content: createDotMarker(false)
+                    });
+                    new window.google.maps.marker.AdvancedMarkerElement({
+                        map, position: leg.end_location, title: 'End', content: createDotMarker(true)
+                    });
+                } else {
+                    // Fallback: legacy markers with SVG icon
+                    const svgIcon = (color) => ({
+                        url: 'data:image/svg+xml;utf-8,' + encodeURIComponent(`<svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="8" fill="${color}" stroke="white" stroke-width="3"/></svg>`),
+                        scaledSize: new window.google.maps.Size(24, 24),
+                        anchor: new window.google.maps.Point(12, 12)
+                    });
+                    new window.google.maps.Marker({ map, position: leg.start_location, title: 'Start', icon: svgIcon('#111827') });
+                    new window.google.maps.Marker({ map, position: leg.end_location, title: 'End', icon: svgIcon('#f59e0b') });
+                }
                 resolve({
                     distance: leg.distance.text,
                     duration: leg.duration.text,

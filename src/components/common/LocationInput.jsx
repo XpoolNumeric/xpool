@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useMapsLibrary } from '@vis.gl/react-google-maps';
-import { MapPin } from 'lucide-react';
+import { MapPin, X } from 'lucide-react';
 import './LocationInput.css';
 
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
@@ -182,6 +182,13 @@ const LocationInput = ({ label, placeholder, value, onChange, onPlaceSelect, cla
         }
     };
 
+    const handleClear = () => {
+        setInputValue('');
+        setPredictions([]);
+        setShowPredictions(false);
+        onChange({ target: { name, value: '' } });
+    };
+
     // Close dropdown when clicking outside
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -213,6 +220,17 @@ const LocationInput = ({ label, placeholder, value, onChange, onPlaceSelect, cla
                     className={!iconColor ? "form-input location-input-field" : "location-input-field"}
                     autoComplete="off"
                 />
+
+                {inputValue && (
+                    <button
+                        type="button"
+                        className="location-input-clear-btn"
+                        onClick={handleClear}
+                        aria-label={`Clear ${name}`}
+                    >
+                        <X size={16} strokeWidth={2.5} />
+                    </button>
+                )}
             </div>
 
             {/* Predictions List */}
@@ -224,11 +242,19 @@ const LocationInput = ({ label, placeholder, value, onChange, onPlaceSelect, cla
                             onClick={() => handlePredictionSelect(place)}
                             className="prediction-item"
                         >
-                            <MapPin size={14} color="#666" />
-                            {place.structured_formatting.main_text}
-                            <span className="prediction-secondary-text">
-                                {place.structured_formatting.secondary_text}
-                            </span>
+                            <div className="prediction-icon">
+                                <MapPin size={16} />
+                            </div>
+                            <div className="prediction-content">
+                                <span className="prediction-main-text">
+                                    {place.structured_formatting.main_text}
+                                </span>
+                                {place.structured_formatting.secondary_text && (
+                                    <span className="prediction-secondary-text">
+                                        {place.structured_formatting.secondary_text}
+                                    </span>
+                                )}
+                            </div>
                         </li>
                     ))}
                 </ul>

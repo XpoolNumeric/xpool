@@ -18,7 +18,11 @@ function LogsPanel() {
     const fetchLogs = async () => {
         setLoading(true);
         try {
+<<<<<<< HEAD
             // Attempt to fetch from 'logs' table. If it fails, empty logs.
+=======
+            // Attempt to fetch from 'logs' table. If it fails, mock data.
+>>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
             const queryTab = activeTab === 'system' ? 'system_error' : 'failed_transaction';
             
             const { data, error } = await supabase
@@ -29,18 +33,38 @@ function LogsPanel() {
                 .limit(50);
                 
             if (error) {
+<<<<<<< HEAD
                 if (error.code === 'PGRST205') {
                     // Gracefully handle missing table without throwing a toast
                     setLogs([]);
                     return;
                 }
+=======
+>>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                 throw error;
             }
             setLogs(data || []);
         } catch (error) {
+<<<<<<< HEAD
             console.error("Database connection issue or table missing:", error);
             toast.error("Failed to fetch system logs from server.");
             setLogs([]);
+=======
+            console.warn("Could not fetch logs from database (table may not exist). Using fallback mock logs.", error);
+            // Fallback mock logs
+            if (activeTab === 'system') {
+                setLogs([
+                    { id: 1, created_at: new Date().toISOString(), message: "Failed to resolve API endpoint api.xpool.in", source: "AuthService", severity: "error" },
+                    { id: 2, created_at: new Date(Date.now() - 3600000).toISOString(), message: "Timeout during driver matchmaking. Driver ID: 1045", source: "MatchMaker", severity: "warning" },
+                    { id: 3, created_at: new Date(Date.now() - 86400000).toISOString(), message: "Supabase connection refused. Retrying...", source: "Database", severity: "critical" },
+                ]);
+            } else {
+                setLogs([
+                    { id: 10, created_at: new Date().toISOString(), message: "Insufficient balance for withdrawal request #409", source: "PaymentGateway", severity: "error" },
+                    { id: 11, created_at: new Date(Date.now() - 7200000).toISOString(), message: "Payment failed for Trip #1293. User Card Expiry", source: "Stripe", severity: "error" },
+                ]);
+            }
+>>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
         } finally {
             setLoading(false);
         }

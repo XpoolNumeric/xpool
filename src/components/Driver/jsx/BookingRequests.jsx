@@ -311,23 +311,25 @@ const BookingRequests = ({ onBack }) => {
                     <div className="requests-list">
                         {filteredRequests.map(request => (
                             <div key={request.id} className="request-card">
-                                <div className={`status-badge ${request.status}`}>
-                                    {request.status}
+                                {/* Top Status Badge */}
+                                <div className={`card-status-label ${request.status}`}>
+                                    {request.status.toUpperCase()}
                                 </div>
 
                                 {/* Passenger Info */}
-                                <div className="passenger-info">
-                                    <div className="passenger-avatar">
-                                        <User size={24} />
+                                <div className="card-passenger-section">
+                                    <div className="passenger-avatar-box">
+                                        <User size={22} strokeWidth={2.5} />
                                     </div>
-                                    <div className="passenger-details">
-                                        <div className="passenger-header-row">
+                                    <div className="passenger-meta">
+                                        <div className="meta-top-row">
                                             <h3>{request.passenger_name}</h3>
-                                            <div className="passenger-rating">
-                                                <Star size={14} fill="#facc15" color="#facc15" />
+                                            <div className="rating-pill">
+                                                <Star size={12} fill="#f59e0b" color="#f59e0b" />
                                                 <span>{request.passenger_rating}</span>
                                             </div>
                                         </div>
+<<<<<<< HEAD
                                         <span className="seats-requested">
                                             <Users size={14} />
                                             {request.seats_requested} seat{request.seats_requested > 1 ? 's' : ''} requested
@@ -341,57 +343,77 @@ const BookingRequests = ({ onBack }) => {
                                         }}>
                                             <MessageCircle size={18} />
                                         </button>
+=======
+                                        <div className="meta-bottom-row">
+                                            <Users size={12} strokeWidth={2.5} className="meta-icon" />
+                                            <span>{request.seats_requested} seat{request.seats_requested > 1 ? 's' : ''} requested</span>
+                                        </div>
+>>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
                                     </div>
+                                    <button className="chat-circle-btn" onClick={() => {
+                                        setActiveChatTripId(request.trip_id);
+                                        setActiveChatBookingId(request.id);
+                                        setShowChat(true);
+                                    }}>
+                                        <MessageCircle size={18} strokeWidth={2.5} />
+                                    </button>
                                 </div>
 
                                 {/* Trip Info */}
                                 {request.trips && (
-                                    <div className="trip-info">
-                                        <div className="route">
-                                            <MapPin size={16} className="from-icon" />
-                                            <span>{request.trips.from_location}</span>
-                                            <span className="arrow">→</span>
-                                            <span>{request.trips.to_location}</span>
+                                    <div className="card-trip-section">
+                                        <div className="route-display">
+                                            <div className="route-node">
+                                                <div className="node-icon pickup"></div>
+                                                <span className="node-text">{request.trips.from_location}</span>
+                                            </div>
+                                            <div className="route-arrow">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                                            </div>
+                                            <div className="route-node">
+                                                <span className="node-text">{request.trips.to_location}</span>
+                                            </div>
                                         </div>
 
-                                        {/* Passenger Pickup & Destination */}
+                                        {/* Passenger Pickup & Destination Detail Box */}
                                         {(request.passenger_location || request.passenger_destination) && (
-                                            <div className="passenger-route">
+                                            <div className="pickup-drop-box">
                                                 {request.passenger_location && (
-                                                    <div className="passenger-point">
-                                                        <MapPin size={12} style={{ color: '#22c55e' }} />
+                                                    <div className="pd-row">
+                                                        <MapPin size={12} strokeWidth={2.5} className="pd-icon pickup" />
                                                         <span>Pickup: {request.passenger_location}</span>
                                                     </div>
                                                 )}
                                                 {request.passenger_destination && (
-                                                    <div className="passenger-point">
-                                                        <MapPin size={12} style={{ color: '#ef4444' }} />
+                                                    <div className="pd-row">
+                                                        <MapPin size={12} strokeWidth={2.5} className="pd-icon drop" />
                                                         <span>Drop: {request.passenger_destination}</span>
                                                     </div>
                                                 )}
                                             </div>
                                         )}
 
-                                        <div className="meta">
-                                            <span>
-                                                <Calendar size={14} />
-                                                {formatDate(request.trips.travel_date)}
-                                            </span>
-                                            <span>
-                                                <Clock size={14} />
-                                                {formatTime(request.trips.travel_time)}
-                                            </span>
+                                        <div className="datetime-row">
+                                            <div className="dt-item">
+                                                <Calendar size={13} strokeWidth={2.5} className="dt-icon" />
+                                                <span>{formatDate(request.trips.travel_date)}</span>
+                                            </div>
+                                            <div className="dt-item">
+                                                <Clock size={13} strokeWidth={2.5} className="dt-icon" />
+                                                <span>{formatTime(request.trips.travel_time)}</span>
+                                            </div>
                                         </div>
+                                        
                                         {/* Payment Mode Badge */}
-                                        <div className="payment-badge">
+                                        <div className="payment-row">
                                             {request.payment_mode === 'online' ? (
-                                                <span className="badge online">
-                                                    <CreditCard size={14} /> Online Paid
-                                                </span>
+                                                <div className="pay-badge online">
+                                                    <CreditCard size={13} strokeWidth={2.5} /> ONLINE PAID
+                                                </div>
                                             ) : (
-                                                <span className="badge online">
-                                                    <Banknote size={14} /> Cash (Pay to Driver)
-                                                </span>
+                                                <div className="pay-badge cod">
+                                                    <Banknote size={13} strokeWidth={2.5} /> CASH PAYMENT
+                                                </div>
                                             )}
                                         </div>
                                     </div>
@@ -399,27 +421,27 @@ const BookingRequests = ({ onBack }) => {
 
                                 {/* Message */}
                                 {request.message && (
-                                    <div className="request-message">
-                                        <MessageCircle size={14} />
+                                    <div className="passenger-message-box">
+                                        <MessageCircle size={14} strokeWidth={2.5} className="msg-icon" />
                                         <p>"{request.message}"</p>
                                     </div>
                                 )}
 
                                 {/* Actions */}
                                 {request.status === 'pending' && (
-                                    <div className="request-actions">
+                                    <div className="card-actions-row">
                                         <button
-                                            className="action-btn reject"
+                                            className="action-btn-premium reject"
                                             onClick={() => handleReject(request)}
                                         >
-                                            <X size={18} />
+                                            <X size={18} strokeWidth={2.5} />
                                             Reject
                                         </button>
                                         <button
-                                            className="action-btn approve"
+                                            className="action-btn-premium approve"
                                             onClick={() => handleApprove(request)}
                                         >
-                                            <Check size={18} />
+                                            <Check size={18} strokeWidth={2.5} />
                                             Approve
                                         </button>
                                     </div>

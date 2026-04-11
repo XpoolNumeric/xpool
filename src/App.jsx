@@ -136,7 +136,7 @@ function App() {
       localStorage.removeItem('currentScreen');
       localStorage.removeItem('userRole');
       localStorage.removeItem('xpool_manual_token');
-      localStorage.removeItem('xpool-auth-token'); 
+      localStorage.removeItem('xpool-auth-token');
       sessionStorage.clear();
       setSession(null);
       setUserRole(null);
@@ -255,7 +255,7 @@ function App() {
     // Listen for deep links (e.g., from Google OAuth or Email Verification)
     const listenerPromise = CapacitorApp.addListener('appUrlOpen', async (event) => {
       console.log('[App] Deep link received:', event.url);
-      
+
       // Supabase's JS client will automatically parse the session from the URL
       // if detectSessionInUrl is true in the client config, 
       // but we need to ensure the App component re-evaluates auth state.
@@ -265,7 +265,7 @@ function App() {
     return () => {
       listenerPromise.then(listener => {
         if (listener && listener.remove) {
-           listener.remove();
+          listener.remove();
         }
       });
     };
@@ -297,45 +297,8 @@ function App() {
       }
     }, 3000); // 3 seconds max (was 5s, reduced for faster recovery)
 
-        const initializeSession = async () => {
+    const initializeSession = async () => {
       try {
-        // --- NEW: URL Interception for Payment Redirects ---
-        const urlParams = new URLSearchParams(window.location.search);
-        const orderIdFromUrl = urlParams.get('order_id');
-        const isPaymentPath = window.location.pathname.includes('/payment-status');
-
-        if (orderIdFromUrl || isPaymentPath) {
-          console.log('[App] Detected payment redirect, order_id:', orderIdFromUrl);
-          
-          // Clear the URL params without refreshing to keep it clean
-          window.history.replaceState({}, document.title, window.location.pathname);
-
-          if (orderIdFromUrl) {
-            // Fetch payment data to restore context
-            const { data: paymentRecord } = await supabase
-              .from('ride_payments')
-              .select('id, total_amount, booking_id, payment_status')
-              .eq('cashfree_order_id', orderIdFromUrl)
-              .single();
-
-            if (paymentRecord) {
-              console.log('[App] Found payment record for redirect:', paymentRecord);
-              setPaymentData({
-                payment_id: paymentRecord.id,
-                booking_id: paymentRecord.booking_id,
-                amount: paymentRecord.total_amount,
-                order_id: orderIdFromUrl // Pass this for auto-verification
-              });
-              setCurrentScreen('paymentScreen');
-              
-              // If already paid, the PaymentScreen will handle it
-              setIsSessionInitializing(false);
-              setIsInitialLoad(false);
-              return; // Stop further initialization routing
-            }
-          }
-        }
-
         const { data: { session: existingSession } } = await supabase.auth.getSession();
         console.log('[App] Session loaded:', existingSession ? 'Yes' : 'No');
         setSession(existingSession);
@@ -343,7 +306,7 @@ function App() {
         if (existingSession?.user) {
           // Silent repair of onboarding flag just in case it was wiped by former clear() bug
           if (!localStorage.getItem('hasSeenOnboarding')) {
-             localStorage.setItem('hasSeenOnboarding', 'true');
+            localStorage.setItem('hasSeenOnboarding', 'true');
           }
 
           // Restore state from backend if user is logged in
@@ -370,8 +333,8 @@ function App() {
 
             // We prefer the screen saved in localStorage because backend sync is debounced and could be behind
             const savedScreenLocal = localStorage.getItem('currentScreen');
-            const targetScreen = savedScreenLocal && statelessScreens.has(savedScreenLocal) 
-              ? savedScreenLocal 
+            const targetScreen = savedScreenLocal && statelessScreens.has(savedScreenLocal)
+              ? savedScreenLocal
               : (backendState.screen && statelessScreens.has(backendState.screen) ? backendState.screen : null);
 
             // Check if screen is appropriate for user role
@@ -464,19 +427,35 @@ function App() {
         return; // Early return: nothing else to do
       }
 
-      // ─── SIGNED_IN: Re-hydrate user role AND navigate for OAuth ─────────
+      // ─── SIGNED_IN: Re-hydrate user role AND navigate for Auth ─────────
       if (_event === 'SIGNED_IN' && newSession?.user) {
-        const backendState = await fetchStateFromBackend(newSession.user.id);
-        if (backendState?.role) setUserRole(backendState.role);
+        let backendState = await fetchStateFromBackend(newSession.user.id);
 
-        // If user is on an auth screen, they just finished OAuth → route to home
         const authScreens = ['authSelection', 'login', 'signup', 'roleSelection', 'onboarding', 'splash'];
         const current = localStorage.getItem('currentScreen');
-        if (!current || authScreens.includes(current)) {
-          console.log('[App] OAuth SIGNED_IN on auth screen → routing to home');
-          const role = backendState?.role || localStorage.getItem('userRole') || 'passenger';
-          setUserRole(role);
-          if (role === 'driver') {
+        const isAuthFlow = !current || authScreens.includes(current);
+
+        // If coming from an auth screen, prioritize the role the user intentionally selected
+        if (isAuthFlow) {
+          console.log('[App] SIGNED_IN on auth screen → resolving role');
+          const intendedRole = localStorage.getItem('userRole') || 'passenger';
+
+          // Resolve mismatch if the user chose a different role than what is in their profile
+          if (backendState?.role && backendState.role !== intendedRole) {
+            console.log(`[App] Resolving role mismatch: updating backend from ${backendState.role} to intended ${intendedRole}`);
+            const { error: updateError } = await supabase
+              .from('profiles')
+              .update({ user_role: intendedRole })
+              .eq('id', newSession.user.id);
+
+            if (!updateError) {
+              backendState = await fetchStateFromBackend(newSession.user.id);
+            }
+          }
+
+          setUserRole(intendedRole);
+
+          if (intendedRole === 'driver') {
             if (backendState?.driverStatus === 'approved') setCurrentScreen('driverHome');
             else if (backendState?.driverStatus === 'pending') setCurrentScreen('verificationInProgress');
             else if (backendState?.driverStatus === 'suspended') setCurrentScreen('driverWallet');
@@ -484,6 +463,9 @@ function App() {
           } else {
             setCurrentScreen('passengerHome');
           }
+        } else {
+          // Normal background session hydration
+          if (backendState?.role) setUserRole(backendState.role);
         }
       }
 
@@ -824,352 +806,369 @@ function App() {
     </div>
   );
 
+  // Check if we're on a full-screen page (onboarding/splash)
+  const isFullScreenPage = currentScreen === 'splash' || currentScreen === 'onboarding' || isSessionInitializing;
+
   const appContent = (
-    <div className="app-container">
-
-      <NetworkStatus />
-      <Toaster position="top-center" reverseOrder={false} />
-
-      {/* Loading / Splash Logic */}
-      {(currentScreen === 'splash' || isSessionInitializing) && (
-        <Splash
-          onFinish={handleSplashFinish}
-          isReady={!isSessionInitializing}
-        />
-      )}
-      {currentScreen === 'onboarding' && <Onboarding onFinish={handleOnboardingFinish} />}
-      {currentScreen === 'roleSelection' && <RoleSelection onFinish={handleRoleSelectionFinish} />}
-
-      {currentScreen === 'authSelection' && (
-        <AuthSelection
-          onLogin={handleAuthLogin}
-          onSignup={handleAuthSignup}
-          onPhoneLogin={handlePhoneLogin}
-          onBack={handleBackToRole}
-        />
+    <>
+      {/* ── Full-screen pages (onboarding, splash) ── */}
+      {isFullScreenPage && (
+        <div className="app-fullscreen">
+          <NetworkStatus />
+          <Toaster position="top-center" reverseOrder={false} />
+          {(currentScreen === 'splash' || isSessionInitializing) && (
+            <Splash
+              onFinish={handleSplashFinish}
+              isReady={!isSessionInitializing}
+            />
+          )}
+          {currentScreen === 'onboarding' && <Onboarding onFinish={handleOnboardingFinish} />}
+        </div>
       )}
 
-      {currentScreen === 'login' && (
-        <Login
-          onBack={handleBackToAuth}
-          onSignupClick={handleAuthSignup}
-          onLoginSuccess={handleLoginSuccess}
-          role={userRole}
-        />
+      {/* ── Mobile app container (all other screens) ── */}
+      {!isFullScreenPage && (
+        <div className="app-container">
+
+          <NetworkStatus />
+          <Toaster position="top-center" reverseOrder={false} />
+
+          {currentScreen === 'roleSelection' && <RoleSelection onFinish={handleRoleSelectionFinish} />}
+
+          {currentScreen === 'authSelection' && (
+            <AuthSelection
+              onLogin={handleAuthLogin}
+              onSignup={handleAuthSignup}
+              onPhoneLogin={handlePhoneLogin}
+              onBack={handleBackToRole}
+            />
+          )}
+
+          {currentScreen === 'login' && (
+            <Login
+              onBack={handleBackToAuth}
+              onSignupClick={handleAuthSignup}
+              onLoginSuccess={handleLoginSuccess}
+              role={userRole}
+            />
+          )}
+
+          {currentScreen === 'signup' && (
+            <Signup
+              onBack={handleBackToAuth}
+              onLoginClick={handleAuthLogin}
+              onSignupOTPNeeded={handleSignupOTPNeeded}
+              role={userRole}
+            />
+          )}
+
+          {currentScreen === 'emailOTPVerification' && (
+            <EmailOTPVerification
+              email={signupEmail}
+              onVerified={handleEmailOTPVerified}
+              onBack={() => setCurrentScreen('signup')}
+            />
+          )}
+
+          {currentScreen === 'phoneLogin' && (
+            <PhoneLogin
+              onBack={isSignupFlow ? () => setCurrentScreen('emailOTPVerification') : handleBackToAuth}
+              onProceed={isSignupFlow ? handlePhoneProceed : handlePhoneLoginProceed}
+              isSignupFlow={isSignupFlow}
+              role={userRole}
+            />
+          )}
+
+          {currentScreen === 'otpVerification' && (
+            <OTPVerification
+              phoneNumber={phoneNumber}
+              onBack={() => setCurrentScreen('phoneLogin')}
+              onVerify={handleOTPVerify}
+              isSignupFlow={isSignupFlow}
+            />
+          )}
+
+          {currentScreen === 'addEmailSignup' && (
+            <Signup
+              isAddMode={true}
+              onBack={handleLogout}
+              onSignupOTPNeeded={(email) => {
+                setSignupEmail(email);
+                setCurrentScreen('addEmailOTPVerification');
+              }}
+              role={userRole}
+            />
+          )}
+
+          {currentScreen === 'addEmailOTPVerification' && (
+            <EmailOTPVerification
+              isAddMode={true}
+              email={signupEmail}
+              onBack={() => setCurrentScreen('addEmailSignup')}
+              onVerified={handleSignupSuccess}
+            />
+          )}
+
+          {currentScreen === 'addPhoneLogin' && (
+            <PhoneLogin
+              isAddMode={true}
+              onBack={handleLogout}
+              onProceed={(phone) => {
+                setPhoneNumber(phone);
+                setCurrentScreen('addOTPVerification');
+              }}
+            />
+          )}
+
+          {currentScreen === 'addOTPVerification' && (
+            <OTPVerification
+              isAddMode={true}
+              phoneNumber={phoneNumber}
+              onBack={() => setCurrentScreen('addPhoneLogin')}
+              onVerify={handleOnboardingStepComplete}
+            />
+          )}
+
+          {currentScreen === 'welcome' && (
+            <Welcome
+              onGetStarted={handleWelcomeGetStarted}
+              onBack={handleBackToRole}
+            />
+          )}
+
+          {/* --- Driver Onboarding Screens --- */}
+
+          {currentScreen === 'poolingSelection' && (
+            <PoolingSelection
+              onConfirm={handlePoolingConfirm}
+              onBack={() => setCurrentScreen('welcome')}
+            />
+          )}
+
+          {currentScreen === 'driverDocuments' && (
+            <DriverDocuments
+              selectedVehicle="Car" // Dynamic in future
+              onBack={handleBackToPooling}
+              onComplete={handleDocumentsComplete}
+              onLogout={handleLogout}
+              session={session} // ADDED: Pass session for uploads
+            />
+          )}
+
+          {currentScreen === 'verificationInProgress' && !isSessionInitializing && (
+            <VerificationInProgress
+              onConfirm={handleVerificationConfirm}
+              onLogout={handleLogout}
+              session={session} // ADDED: Pass session
+            />
+          )}
+
+          {/* Lazy-loaded screens wrapped in Suspense */}
+          <Suspense fallback={lazyFallback}>
+
+            {currentScreen === 'driverWelcome' && !isSessionInitializing && (
+              <DriverWelcome onContinue={() => setCurrentScreen('driverHome')} />
+            )}
+
+            {/* --- Driver Dashboard Screens --- */}
+
+            {currentScreen === 'driverHome' && !isSessionInitializing && (
+              <DriverHome
+                session={session}
+                onNavigate={(screen) => setCurrentScreen(screen)}
+                onLogout={handleLogout}
+              />
+            )}
+
+            {currentScreen === 'driverWallet' && (
+              <DriverWallet
+                onBack={() => setCurrentScreen('driverHome')}
+                session={session} // ADDED: Pass session for wallet data
+              />
+            )}
+
+            {currentScreen === 'publishTrip' && (
+              <PublishTrip
+                onBack={() => setCurrentScreen('driverHome')}
+                onSuccess={() => setCurrentScreen('myTrips')}
+                onLogout={handleLogout}
+                session={session} // ADDED: Pass session for trip creation
+              />
+            )}
+
+            {currentScreen === 'myTrips' && (
+              <MyTrips
+                onBack={() => setCurrentScreen('driverHome')}
+                onRideStart={(trip) => {
+                  setSelectedTrip(trip);
+                  setCurrentScreen('rideOtpVerification');
+                }}
+                session={session} // ADDED: Pass session for trip data
+              />
+            )}
+
+            {currentScreen === 'bookingRequests' && (
+              <BookingRequests
+                onBack={() => setCurrentScreen('driverHome')}
+                session={session} // ADDED: Pass session for booking data
+              />
+            )}
+
+            {currentScreen === 'rideOtpVerification' && selectedTrip && (
+              <OTPVerificationScreen
+                trip={selectedTrip}
+                onBack={() => setCurrentScreen('myTrips')}
+                onVerified={() => setCurrentScreen('activeRide')}
+              />
+            )}
+
+            {currentScreen === 'activeRide' && selectedTrip && (
+              <ActiveRide
+                trip={selectedTrip}
+                onBack={() => setCurrentScreen('driverHome')}
+                onComplete={() => {
+                  setSelectedTrip(null);
+                  setCurrentScreen('driverHome');
+                }}
+                onLogout={handleLogout}
+                session={session} // ADDED: Pass session for ride updates
+              />
+            )}
+
+            {(currentScreen === 'passengerHome' || currentScreen === 'searchTrips') && !isSessionInitializing && (
+              <PassengerHome
+                onBack={() => setCurrentScreen('welcome')}
+                searchParams={passengerSearchParams}
+                setSearchParams={setPassengerSearchParams}
+                onSearchTrips={(params) => {
+                  setPassengerSearchParams(params);
+                  setCurrentScreen('searchTrips');
+                }}
+                onNavigate={(screen) => {
+                  if (screen === 'logout') {
+                    handleLogout();
+                  } else {
+                    setCurrentScreen(screen);
+                  }
+                }}
+                onLogout={handleLogout}
+                session={session}
+                isSearchOverlayActive={currentScreen === 'searchTrips'}
+              />
+            )}
+
+            {/* --- Passenger Trip Search Screens --- */}
+
+            {currentScreen === 'searchTrips' && (
+              <SearchTrips
+                onBack={() => setCurrentScreen('passengerHome')}
+                searchParams={passengerSearchParams}
+                onTripSelect={(trip) => {
+                  setSelectedTrip(trip);
+                  setCurrentScreen('tripBooking');
+                }}
+                session={session}
+              />
+            )}
+
+            {currentScreen === 'tripBooking' && selectedTrip && (
+              <TripBooking
+                trip={selectedTrip}
+                onBack={() => setCurrentScreen('searchTrips')}
+                onSuccess={() => {
+                  setSelectedTrip(null);
+                  setCurrentScreen('myBookings');
+                }}
+                session={session} // ADDED: Pass session for booking
+              />
+            )}
+
+            {/* --- New Passenger Pages --- */}
+
+            {currentScreen === 'passengerProfile' && (
+              <PassengerProfile
+                onBack={() => setCurrentScreen('passengerHome')}
+                onLogout={handleLogout} // Uses robust handler: clears localStorage, state, and all realtime channels
+                session={session}
+              />
+            )}
+
+            {currentScreen === 'passengerWallet' && (
+              <PassengerWallet
+                onBack={() => setCurrentScreen('passengerHome')}
+              />
+            )}
+
+            {currentScreen === 'paymentDetails' && (
+              <PaymentDetails
+                onBack={() => setCurrentScreen('passengerHome')}
+                session={session} // ADDED: Pass session
+              />
+            )}
+
+            {currentScreen === 'myBookings' && (
+              <MyBookings
+                onBack={() => setCurrentScreen('passengerHome')}
+                onViewDetails={(booking) => {
+                  setSelectedTrip(booking);
+                  setCurrentScreen('passengerRideDetails');
+                }}
+                onPaymentRequired={(data) => {
+                  setPaymentData(data);
+                  setCurrentScreen('paymentScreen');
+                }}
+                session={session} // ADDED: Pass session
+              />
+            )}
+
+            {currentScreen === 'rideHistory' && (
+              <RideHistory
+                onBack={() => setCurrentScreen('passengerHome')}
+                onViewDetails={(ride) => {
+                  setSelectedTrip(ride);
+                  setCurrentScreen('passengerRideDetails');
+                }}
+                session={session} // ADDED: Pass session
+              />
+            )}
+
+            {currentScreen === 'passengerRideDetails' && selectedTrip && (
+              <PassengerRideDetails
+                booking={selectedTrip}
+                onBack={() => setCurrentScreen(selectedTrip.status === 'completed' ? 'rideHistory' : 'myBookings')}
+                onPaymentRequired={(data) => {
+                  setPaymentData(data);
+                  setCurrentScreen('paymentScreen');
+                }}
+                session={session} // ADDED: Pass session
+              />
+            )}
+
+            {currentScreen === 'paymentScreen' && paymentData && (
+              <PaymentScreen
+                paymentData={paymentData}
+                onBack={() => setCurrentScreen('myBookings')}
+                onPaymentComplete={() => setCurrentScreen('rideHistory')}
+              />
+            )}
+
+            {currentScreen === 'profile' && (
+              <Profile
+                session={session}
+                onBack={() => setCurrentScreen(userRole === 'driver' ? 'driverHome' : 'passengerHome')}
+                onLogout={handleLogout}
+              />
+            )}
+          </Suspense>
+          {/* Duplicate Splash removed — handled at line 672 */}
+
+        </div>
       )}
-
-      {currentScreen === 'signup' && (
-        <Signup
-          onBack={handleBackToAuth}
-          onLoginClick={handleAuthLogin}
-          onSignupOTPNeeded={handleSignupOTPNeeded}
-          role={userRole}
-        />
-      )}
-
-      {currentScreen === 'emailOTPVerification' && (
-        <EmailOTPVerification
-          email={signupEmail}
-          onVerified={handleEmailOTPVerified}
-          onBack={() => setCurrentScreen('signup')}
-        />
-      )}
-
-      {currentScreen === 'phoneLogin' && (
-        <PhoneLogin
-          onBack={isSignupFlow ? () => setCurrentScreen('emailOTPVerification') : handleBackToAuth}
-          onProceed={isSignupFlow ? handlePhoneProceed : handlePhoneLoginProceed}
-          isSignupFlow={isSignupFlow}
-        />
-      )}
-
-      {currentScreen === 'otpVerification' && (
-        <OTPVerification
-          phoneNumber={phoneNumber}
-          onBack={() => setCurrentScreen('phoneLogin')}
-          onVerify={handleOTPVerify}
-          isSignupFlow={isSignupFlow}
-        />
-      )}
-
-      {currentScreen === 'addEmailSignup' && (
-        <Signup
-          isAddMode={true}
-          onBack={handleLogout}
-          onSignupOTPNeeded={(email) => {
-            setSignupEmail(email);
-            setCurrentScreen('addEmailOTPVerification');
-          }}
-          role={userRole}
-        />
-      )}
-
-      {currentScreen === 'addEmailOTPVerification' && (
-        <EmailOTPVerification
-          isAddMode={true}
-          email={signupEmail}
-          onBack={() => setCurrentScreen('addEmailSignup')}
-          onVerified={handleSignupSuccess}
-        />
-      )}
-
-      {currentScreen === 'addPhoneLogin' && (
-        <PhoneLogin
-          isAddMode={true}
-          onBack={handleLogout}
-          onProceed={(phone) => {
-            setPhoneNumber(phone);
-            setCurrentScreen('addOTPVerification');
-          }}
-        />
-      )}
-
-      {currentScreen === 'addOTPVerification' && (
-        <OTPVerification
-          isAddMode={true}
-          phoneNumber={phoneNumber}
-          onBack={() => setCurrentScreen('addPhoneLogin')}
-          onVerify={handleOnboardingStepComplete}
-        />
-      )}
-
-      {currentScreen === 'welcome' && (
-        <Welcome
-          onGetStarted={handleWelcomeGetStarted}
-          onBack={handleBackToRole}
-        />
-      )}
-
-      {/* --- Driver Onboarding Screens --- */}
-
-      {currentScreen === 'poolingSelection' && (
-        <PoolingSelection
-          onConfirm={handlePoolingConfirm}
-          onBack={() => setCurrentScreen('welcome')}
-        />
-      )}
-
-      {currentScreen === 'driverDocuments' && (
-        <DriverDocuments
-          selectedVehicle="Car" // Dynamic in future
-          onBack={handleBackToPooling}
-          onComplete={handleDocumentsComplete}
-          onLogout={handleLogout}
-          session={session} // ADDED: Pass session for uploads
-        />
-      )}
-
-      {currentScreen === 'verificationInProgress' && !isSessionInitializing && (
-        <VerificationInProgress
-          onConfirm={handleVerificationConfirm}
-          onLogout={handleLogout}
-          session={session} // ADDED: Pass session
-        />
-      )}
-
-      {/* Lazy-loaded screens wrapped in Suspense */}
-      <Suspense fallback={lazyFallback}>
-
-        {currentScreen === 'driverWelcome' && !isSessionInitializing && (
-          <DriverWelcome onContinue={() => setCurrentScreen('driverHome')} />
-        )}
-
-        {/* --- Driver Dashboard Screens --- */}
-
-        {currentScreen === 'driverHome' && !isSessionInitializing && (
-          <DriverHome
-            session={session}
-            onNavigate={(screen) => setCurrentScreen(screen)}
-            onLogout={handleLogout}
-          />
-        )}
-
-        {currentScreen === 'driverWallet' && (
-          <DriverWallet
-            onBack={() => setCurrentScreen('driverHome')}
-            session={session} // ADDED: Pass session for wallet data
-          />
-        )}
-
-        {currentScreen === 'publishTrip' && (
-          <PublishTrip
-            onBack={() => setCurrentScreen('driverHome')}
-            onSuccess={() => setCurrentScreen('myTrips')}
-            onLogout={handleLogout}
-            session={session} // ADDED: Pass session for trip creation
-          />
-        )}
-
-        {currentScreen === 'myTrips' && (
-          <MyTrips
-            onBack={() => setCurrentScreen('driverHome')}
-            onRideStart={(trip) => {
-              setSelectedTrip(trip);
-              setCurrentScreen('rideOtpVerification');
-            }}
-            session={session} // ADDED: Pass session for trip data
-          />
-        )}
-
-        {currentScreen === 'bookingRequests' && (
-          <BookingRequests
-            onBack={() => setCurrentScreen('driverHome')}
-            session={session} // ADDED: Pass session for booking data
-          />
-        )}
-
-        {currentScreen === 'rideOtpVerification' && selectedTrip && (
-          <OTPVerificationScreen
-            trip={selectedTrip}
-            onBack={() => setCurrentScreen('myTrips')}
-            onVerified={() => setCurrentScreen('activeRide')}
-          />
-        )}
-
-        {currentScreen === 'activeRide' && selectedTrip && (
-          <ActiveRide
-            trip={selectedTrip}
-            onBack={() => setCurrentScreen('driverHome')}
-            onComplete={() => {
-              setSelectedTrip(null);
-              setCurrentScreen('driverHome');
-            }}
-            onLogout={handleLogout}
-            session={session} // ADDED: Pass session for ride updates
-          />
-        )}
-
-        {currentScreen === 'passengerHome' && !isSessionInitializing && (
-          <PassengerHome
-            onBack={() => setCurrentScreen('welcome')}
-            searchParams={passengerSearchParams}
-            setSearchParams={setPassengerSearchParams}
-            onSearchTrips={(params) => {
-              setPassengerSearchParams(params);
-              setCurrentScreen('searchTrips');
-            }}
-            onNavigate={(screen) => {
-              if (screen === 'logout') {
-                handleLogout();
-              } else {
-                setCurrentScreen(screen);
-              }
-            }}
-            onLogout={handleLogout}
-            session={session} // ADDED: Pass session
-          />
-        )}
-
-        {/* --- Passenger Trip Search Screens --- */}
-
-        {currentScreen === 'searchTrips' && (
-          <SearchTrips
-            onBack={() => setCurrentScreen('passengerHome')}
-            searchParams={passengerSearchParams}
-            onTripSelect={(trip) => {
-              setSelectedTrip(trip);
-              setCurrentScreen('tripBooking');
-            }}
-            session={session} // ADDED: Pass session
-          />
-        )}
-
-        {currentScreen === 'tripBooking' && selectedTrip && (
-          <TripBooking
-            trip={selectedTrip}
-            onBack={() => setCurrentScreen('searchTrips')}
-            onSuccess={() => {
-              setSelectedTrip(null);
-              setCurrentScreen('myBookings');
-            }}
-            session={session} // ADDED: Pass session for booking
-          />
-        )}
-
-        {/* --- New Passenger Pages --- */}
-
-        {currentScreen === 'passengerProfile' && (
-          <PassengerProfile
-            onBack={() => setCurrentScreen('passengerHome')}
-            onLogout={handleLogout} // Uses robust handler: clears localStorage, state, and all realtime channels
-            session={session}
-          />
-        )}
-
-        {currentScreen === 'passengerWallet' && (
-          <PassengerWallet
-            onBack={() => setCurrentScreen('passengerHome')}
-          />
-        )}
-
-        {currentScreen === 'paymentDetails' && (
-          <PaymentDetails
-            onBack={() => setCurrentScreen('passengerHome')}
-            session={session} // ADDED: Pass session
-          />
-        )}
-
-        {currentScreen === 'myBookings' && (
-          <MyBookings
-            onBack={() => setCurrentScreen('passengerHome')}
-            onViewDetails={(booking) => {
-              setSelectedTrip(booking);
-              setCurrentScreen('passengerRideDetails');
-            }}
-            onPaymentRequired={(data) => {
-              setPaymentData(data);
-              setCurrentScreen('paymentScreen');
-            }}
-            session={session} // ADDED: Pass session
-          />
-        )}
-
-        {currentScreen === 'rideHistory' && (
-          <RideHistory
-            onBack={() => setCurrentScreen('passengerHome')}
-            onViewDetails={(ride) => {
-              setSelectedTrip(ride);
-              setCurrentScreen('passengerRideDetails');
-            }}
-            session={session} // ADDED: Pass session
-          />
-        )}
-
-        {currentScreen === 'passengerRideDetails' && selectedTrip && (
-          <PassengerRideDetails
-            booking={selectedTrip}
-            onBack={() => setCurrentScreen(selectedTrip.status === 'completed' ? 'rideHistory' : 'myBookings')}
-            onPaymentRequired={(data) => {
-              setPaymentData(data);
-              setCurrentScreen('paymentScreen');
-            }}
-            session={session} // ADDED: Pass session
-          />
-        )}
-
-        {currentScreen === 'paymentScreen' && paymentData && (
-          <PaymentScreen
-            paymentData={paymentData}
-            onBack={() => setCurrentScreen('myBookings')}
-            onPaymentComplete={() => setCurrentScreen('rideHistory')}
-          />
-        )}
-
-        {currentScreen === 'profile' && (
-          <Profile
-            session={session}
-            onBack={() => setCurrentScreen(userRole === 'driver' ? 'driverHome' : 'passengerHome')}
-            onLogout={handleLogout}
-          />
-        )}
-      </Suspense>
-      {/* Duplicate Splash removed — handled at line 672 */}
-
-    </div>
+    </>
   );
 
   return API_KEY && API_KEY.trim() !== '' ? (
-    <APIProvider apiKey={API_KEY} libraries={['places', 'geometry']}>
+    <APIProvider apiKey={API_KEY} libraries={['places', 'geometry', 'marker']}>
       {appContent}
     </APIProvider>
   ) : (

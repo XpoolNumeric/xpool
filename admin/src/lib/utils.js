@@ -17,7 +17,11 @@ export function formatCurrency(amount) {
         style: 'currency',
         currency: 'INR',
         maximumFractionDigits: 0,
+<<<<<<< HEAD
     }).format(amount || 0);
+=======
+    }).format(amount);
+>>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
 }
 
 /**
@@ -38,6 +42,7 @@ export function truncate(str, maxLen = 24) {
     if (!str) return '';
     return str.length > maxLen ? str.substring(0, maxLen) + '…' : str;
 }
+<<<<<<< HEAD
 
 /**
  * Format a date string to a readable format.
@@ -92,3 +97,5 @@ export function getInitials(name, maxChars = 2) {
         .toUpperCase()
         .substring(0, maxChars);
 }
+=======
+>>>>>>> 17258722 (feat: complete app & admin panel updates, unify rating system, and cleanup repo)
