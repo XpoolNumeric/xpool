@@ -51,6 +51,13 @@ const UnifiedRatingModal = ({ targetUser, tripId, onClose, onFinish }) => {
             if (error) throw error;
 
             toast.success('Thank you for your feedback!');
+            
+            if (tripId) {
+                const ratedTrips = JSON.parse(localStorage.getItem('rated_trips') || '{}');
+                ratedTrips[tripId] = true;
+                localStorage.setItem('rated_trips', JSON.stringify(ratedTrips));
+            }
+            
             if (onFinish) onFinish();
             onClose();
         } catch (error) {
@@ -147,7 +154,14 @@ const UnifiedRatingModal = ({ targetUser, tripId, onClose, onFinish }) => {
                             )}
                         </button>
                         
-                        <button className="skip-text-btn" onClick={onClose} disabled={submitting}>
+                        <button className="skip-text-btn" onClick={() => {
+                            if (tripId) {
+                                const ratedTrips = JSON.parse(localStorage.getItem('rated_trips') || '{}');
+                                ratedTrips[tripId] = true;
+                                localStorage.setItem('rated_trips', JSON.stringify(ratedTrips));
+                            }
+                            onClose();
+                        }} disabled={submitting}>
                             Not now, maybe later
                         </button>
                     </div>

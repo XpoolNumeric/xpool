@@ -26,7 +26,7 @@
     background: linear-gradient(to bottom, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.8) 70%, rgba(255, 255, 255, 0) 100%);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
-    padding: 3rem 1.5rem 1.5rem;
+    padding: calc(var(--safe-area-top) + 1.25rem) 1.5rem 1.25rem;
     display: flex;
     align-items: center;
     justify-content: space-between;

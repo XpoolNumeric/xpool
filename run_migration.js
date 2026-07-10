@@ -11,7 +11,7 @@ const supabaseUrl = process.env.VITE_SUPABASE_URL;
 
 const runMigration = async () => {
     console.log("To apply the SQL migration, please run the following SQL snippet in your Supabase SQL Editor:");
-    const sql = fs.readFileSync('./migrations/phase4_auto_cancel_trips.sql', 'utf8');
+    const sql = fs.readFileSync('./migrations/phase5_booking_cancellation_seats.sql', 'utf8');
     console.log('--------------------------------------------------');
     console.log(sql);
     console.log('--------------------------------------------------');

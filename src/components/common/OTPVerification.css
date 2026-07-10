@@ -34,16 +34,37 @@
 /* ─── Keyframes ────────────────────────────────────────────────────────── */
 
 @keyframes otp-grain-drift {
-  0%, 100% { transform: translate(0, 0); }
-  10% { transform: translate(-2%, -3%); }
-  30% { transform: translate(3%, -1%); }
-  50% { transform: translate(-1%, 4%); }
-  70% { transform: translate(2%, 1%); }
-  90% { transform: translate(-3%, -2%); }
+
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+
+  10% {
+    transform: translate(-2%, -3%);
+  }
+
+  30% {
+    transform: translate(3%, -1%);
+  }
+
+  50% {
+    transform: translate(-1%, 4%);
+  }
+
+  70% {
+    transform: translate(2%, 1%);
+  }
+
+  90% {
+    transform: translate(-3%, -2%);
+  }
 }
 
 @keyframes otp-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* ─── Root Container ───────────────────────────────────────────────────── */
@@ -61,7 +82,7 @@
   font-family: var(--otp-font);
   background: linear-gradient(155deg, #ffffff 0%, #ffffff 30%, #ffffff 60%, #ffffff 100%);
   isolation: isolate;
-  padding: 60px 24px 32px 24px;
+  padding: calc(var(--safe-area-top) + 36px) 24px 32px 24px;
 }
 
 /* ─── Mesh Background ──────────────────────────────────────────────────── */
@@ -374,7 +395,7 @@
 
 @media (max-width: 480px) {
   .otp-root {
-    padding: 60px 16px 24px 16px;
+    padding: calc(var(--safe-area-top) + 24px) 16px 24px 16px;
   }
 
   .otp-title {
@@ -440,7 +461,7 @@
     height: 48px;
     font-size: 15px;
   }
-  
+
   .otp-bottom-section {
     gap: 12px;
   }

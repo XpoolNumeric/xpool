@@ -14,6 +14,7 @@ const BookingRequests = ({ onBack }) => {
     const [activeChatTripId, setActiveChatTripId] = useState(null);
     const [activeChatBookingId, setActiveChatBookingId] = useState(null);
     const [currentUserId, setCurrentUserId] = useState(null);
+    const [processingId, setProcessingId] = useState(null);
 
     useEffect(() => {
         let subscription;
@@ -157,6 +158,7 @@ const BookingRequests = ({ onBack }) => {
 
     const handleApprove = async (request) => {
         try {
+            setProcessingId(request.id);
             console.log('[BookingRequests] Approving booking:', request.id);
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) throw new Error('Session expired. Please login again.');
@@ -194,11 +196,14 @@ const BookingRequests = ({ onBack }) => {
         } catch (error) {
             console.error('[BookingRequests] Error approving request:', error);
             toast.error(error.message || 'Failed to approve booking');
+        } finally {
+            setProcessingId(null);
         }
     };
 
     const handleReject = async (request) => {
         try {
+            setProcessingId(request.id);
             console.log('[BookingRequests] Rejecting booking:', request.id);
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) throw new Error('Session expired. Please login again.');
@@ -234,6 +239,8 @@ const BookingRequests = ({ onBack }) => {
         } catch (error) {
             console.error('[BookingRequests] Error rejecting request:', error);
             toast.error(error.message || 'Failed to reject booking');
+        } finally {
+            setProcessingId(null);
         }
     };
 
@@ -415,18 +422,20 @@ const BookingRequests = ({ onBack }) => {
                                 {request.status === 'pending' && (
                                     <div className="card-actions-row">
                                         <button
-                                            className="action-btn-premium reject"
+                                            className={`action-btn-premium reject ${processingId === request.id ? 'loading' : ''}`}
                                             onClick={() => handleReject(request)}
+                                            disabled={processingId === request.id}
                                         >
-                                            <X size={18} strokeWidth={2.5} />
-                                            Reject
+                                            {processingId === request.id ? <span className="loading-spinner-small"></span> : <X size={18} strokeWidth={2.5} />}
+                                            {processingId === request.id ? 'Processing...' : 'Reject'}
                                         </button>
                                         <button
-                                            className="action-btn-premium approve"
+                                            className={`action-btn-premium approve ${processingId === request.id ? 'loading' : ''}`}
                                             onClick={() => handleApprove(request)}
+                                            disabled={processingId === request.id}
                                         >
-                                            <Check size={18} strokeWidth={2.5} />
-                                            Approve
+                                            {processingId === request.id ? <span className="loading-spinner-small"></span> : <Check size={18} strokeWidth={2.5} />}
+                                            {processingId === request.id ? 'Processing...' : 'Approve'}
                                         </button>
                                     </div>
                                 )}

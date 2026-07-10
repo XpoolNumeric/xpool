@@ -1,0 +1,191 @@
+.dashboard-container {
+    display: flex;
+    min-height: 100vh;
+    background: #f8f9fa;
+}
+
+.dashboard-content-wrapper {
+    flex: 1;
+    min-width: 0;
+}
+
+.dashboard-main {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2.5rem;
+}
+
+/* Stats Grid */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 3rem;
+}
+
+.stat-card {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 1.25rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.02);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    border: 1px solid #eee;
+}
+
+.stat-label {
+    font-size: 0.85rem;
+    color: #666;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.stat-value {
+    font-size: 1.75rem;
+    font-weight: 800;
+    color: #000;
+}
+
+/* Page Title Section */
+.page-title-section {
+    margin-bottom: 2rem;
+}
+
+.page-title {
+    font-size: 1.75rem;
+    font-weight: 800;
+    margin: 0 0 0.25rem;
+}
+
+.page-subtitle {
+    color: #666;
+    font-size: 0.95rem;
+}
+
+/* Drivers List */
+.drivers-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.driver-card {
+    background: white;
+    padding: 1.25rem;
+    border-radius: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    cursor: pointer;
+    border: 1px solid #eee;
+    transition: all 0.2s;
+}
+
+.driver-card:hover {
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+    border-color: #FFD700;
+    transform: translateY(-2px);
+}
+
+.driver-avatar {
+    width: 48px;
+    height: 48px;
+    background: #fff9e6;
+    color: #B8860B;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.driver-info {
+    flex: 1;
+}
+
+.driver-name {
+    font-size: 1.05rem;
+    font-weight: 700;
+    margin: 0 0 0.25rem;
+}
+
+.driver-meta {
+    display: flex;
+    gap: 0.75rem;
+    font-size: 0.85rem;
+}
+
+.vehicle-number {
+    background: #f0f0f0;
+    padding: 0.1rem 0.4rem;
+    border-radius: 0.25rem;
+    font-family: monospace;
+    font-weight: 600;
+}
+
+.driver-date {
+    text-align: right;
+    display: flex;
+    flex-direction: column;
+}
+
+.date-label {
+    font-size: 0.7rem;
+    color: #999;
+    text-transform: uppercase;
+}
+
+.date-value {
+    font-weight: 600;
+    color: #333;
+}
+
+.chevron-icon {
+    color: #ccc;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 4rem 2rem;
+    border: 2px dashed #eee;
+    border-radius: 1.5rem;
+    color: #999;
+}
+
+.empty-icon {
+    margin-bottom: 1rem;
+}
+
+/* Mobile Responsive */
+@media (max-width: 1024px) {
+    .dashboard-main {
+        padding: 1.5rem;
+    }
+}
+
+@media (max-width: 640px) {
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .driver-card {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    .driver-date {
+        width: 100%;
+        text-align: left;
+        flex-direction: row;
+        gap: 0.5rem;
+        align-items: center;
+        border-top: 1px solid #eee;
+        padding-top: 0.75rem;
+    }
+
+    .chevron-icon {
+        display: none;
+    }
+}

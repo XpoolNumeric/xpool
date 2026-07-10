@@ -4,6 +4,9 @@ import { supabase } from './supabaseClient';
 import { syncStateToBackend, fetchStateFromBackend } from './utils/userStateSync';
 import { useNativePermissions } from './hooks/useNativePermissions';
 import { App as CapacitorApp } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
+import { setStatusBarDark, setStatusBarLight } from './utils/statusBar';
+import { registerPushNotifications, removeFcmTokenFromDb } from './utils/pushNotifications';
 
 import Splash from './components/common/Splash';
 import Onboarding from './components/common/Onboarding';
@@ -67,19 +70,41 @@ function App() {
   // Request native permissions on app startup
   useNativePermissions();
 
+  // Automatically adjust status bar icon color based on screen background
+  useEffect(() => {
+    // Screens with dark/orange backgrounds → use light (white) status bar icons
+    const lightBgScreens = new Set(['driverHome', 'driverWallet', 'publishTrip', 'myTrips', 'bookingRequests', 'activeRide']);
+    if (lightBgScreens.has(currentScreen)) {
+      setStatusBarLight();
+    } else {
+      // All passenger + auth screens have white/light backgrounds → dark icons
+      setStatusBarDark();
+    }
+  }, [currentScreen]);
+
   const [userRole, setUserRole] = useState(() => localStorage.getItem('userRole') || null);
   const [phoneNumber, setPhoneNumber] = useState('');
   const [signupEmail, setSignupEmail] = useState('');
   const [isSignupFlow, setIsSignupFlow] = useState(false);
-  const [selectedTrip, setSelectedTrip] = useState(null);
-  const [session, setSession] = useState(null);
-  const [passengerSearchParams, setPassengerSearchParams] = useState({
-    from: '',
-    to: '',
-    date: '',
-    vehicle: 'any'
+  const [selectedTrip, setSelectedTrip] = useState(() => {
+    try {
+      const saved = localStorage.getItem('selectedTrip');
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
   });
-  const [paymentData, setPaymentData] = useState(null);
+  const [session, setSession] = useState(null);
+  const [passengerSearchParams, setPassengerSearchParams] = useState(() => {
+    try {
+      const saved = localStorage.getItem('passengerSearchParams');
+      return saved ? JSON.parse(saved) : { from: '', to: '', date: '', vehicle: 'any' };
+    } catch { return { from: '', to: '', date: '', vehicle: 'any' }; }
+  });
+  const [paymentData, setPaymentData] = useState(() => {
+    try {
+      const saved = localStorage.getItem('paymentData');
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+  });
   const [isSessionInitializing, setIsSessionInitializing] = useState(true);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   // Add this function to handle invalid screens/404s
@@ -115,6 +140,12 @@ function App() {
     const toastId = toast.loading('Logging out...');
 
     try {
+      await removeFcmTokenFromDb();
+    } catch (pushErr) {
+      console.warn('[App] Failed to delete push token on logout:', pushErr);
+    }
+
+    try {
       // FORCE Logout safely: Race against a timeout so the UI never hangs
       const { error } = await Promise.race([
         supabase.auth.signOut(),
@@ -132,11 +163,14 @@ function App() {
       console.log('[App] Logout successful, redirecting to RoleSelection');
       toast.success('Logged out successfully', { id: toastId });
 
-      // Targeted removal instead of localStorage.clear() to preserve onboarding state
       localStorage.removeItem('currentScreen');
       localStorage.removeItem('userRole');
       localStorage.removeItem('xpool_manual_token');
       localStorage.removeItem('xpool-auth-token');
+      localStorage.removeItem('sb-' + import.meta.env.VITE_SUPABASE_URL.split('//')[1].split('.')[0] + '-auth-token');
+      localStorage.removeItem('selectedTrip');
+      localStorage.removeItem('passengerSearchParams');
+      localStorage.removeItem('paymentData');
       sessionStorage.clear();
       setSession(null);
       setUserRole(null);
@@ -271,6 +305,49 @@ function App() {
     };
   }, []);
 
+  // Hardware Back Button Handling
+  useEffect(() => {
+    const backButtonListener = CapacitorApp.addListener('backButton', ({ canGoBack }) => {
+      setCurrentScreen(prevScreen => {
+        const backMap = {
+          'driverWallet': 'driverHome',
+          'publishTrip': 'driverHome',
+          'myTrips': 'driverHome',
+          'bookingRequests': 'driverHome',
+          'activeRide': 'driverHome',
+          'searchTrips': 'passengerHome',
+          'tripBooking': 'passengerHome',
+          'passengerProfile': 'passengerHome',
+          'passengerWallet': 'passengerHome',
+          'paymentDetails': 'passengerHome',
+          'myBookings': 'passengerHome',
+          'rideHistory': 'passengerHome',
+          'passengerRideDetails': 'myBookings',
+          'paymentScreen': 'myBookings',
+          'profile': localStorage.getItem('userRole') === 'driver' ? 'driverHome' : 'passengerHome',
+        };
+
+        if (backMap[prevScreen]) {
+          return backMap[prevScreen];
+        } else {
+          // At root level (e.g. driverHome, passengerHome, or unmapped screen)
+          CapacitorApp.exitApp();
+          return prevScreen;
+        }
+      });
+    });
+
+    return () => {
+      backButtonListener.then(listener => listener.remove());
+    };
+  }, []);
+
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      document.body.classList.add('is-native');
+    }
+  }, []);
+
   useEffect(() => {
     // Safety Timeout to force Splash screen to clear
     const safetyTimeout = setTimeout(() => {
@@ -299,11 +376,20 @@ function App() {
 
     const initializeSession = async () => {
       try {
-        const { data: { session: existingSession } } = await supabase.auth.getSession();
-        console.log('[App] Session loaded:', existingSession ? 'Yes' : 'No');
-        setSession(existingSession);
+        console.log('[App] initializeSession START. savedScreen:', localStorage.getItem('currentScreen'));
+        const { data: { session: existingSession }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          console.error('[App] getSession error (possible expired token):', sessionError);
+        }
+
+        console.log('[App] Session loaded:', existingSession ? 'Yes' : 'No', 'User ID:', existingSession?.user?.id);
+        if (existingSession) setSession(existingSession);
 
         if (existingSession?.user) {
+          // Register for native push notifications
+          registerPushNotifications(existingSession.user.id);
+
           // Silent repair of onboarding flag just in case it was wiped by former clear() bug
           if (!localStorage.getItem('hasSeenOnboarding')) {
             localStorage.setItem('hasSeenOnboarding', 'true');
@@ -315,7 +401,9 @@ function App() {
           console.log('[App] Backend state:', backendState);
 
           if (backendState) {
-            if (backendState.role) setUserRole(backendState.role);
+            // Fix: Use localStorage role if backend doesn't have it yet to prevent eviction from driver screens
+            const effectiveRole = backendState.role || localStorage.getItem('userRole') || 'passenger';
+            setUserRole(effectiveRole);
 
             // --- ONBOARDING INTERCEPT ---
             // Natively routes user if they are missing email/google link
@@ -324,22 +412,21 @@ function App() {
               return;
             }
 
-            // Build the set of FULL valid stateless screens. We exclude screens that require transient state (like selectedTrip)
-            const statelessScreens = new Set([
-              'driverHome', 'driverWallet', 'publishTrip', 'myTrips', 'bookingRequests', 'activeRide',
-              'passengerHome', 'searchTrips', 'passengerProfile', 'passengerWallet', 'myBookings', 'rideHistory',
-              'profile'
+            // Build the set of FULL valid screens for logged in users to restore
+            const validScreensToRestore = new Set([
+              'driverHome', 'driverWallet', 'publishTrip', 'myTrips', 'bookingRequests', 'activeRide', 'rideOtpVerification',
+              'passengerHome', 'searchTrips', 'passengerProfile', 'passengerWallet', 'myBookings', 'rideHistory', 'passengerRideDetails', 'tripBooking', 'paymentScreen', 'profile'
             ]);
 
             // We prefer the screen saved in localStorage because backend sync is debounced and could be behind
             const savedScreenLocal = localStorage.getItem('currentScreen');
-            const targetScreen = savedScreenLocal && statelessScreens.has(savedScreenLocal)
+            const targetScreen = savedScreenLocal && validScreensToRestore.has(savedScreenLocal)
               ? savedScreenLocal
-              : (backendState.screen && statelessScreens.has(backendState.screen) ? backendState.screen : null);
+              : (backendState.screen && validScreensToRestore.has(backendState.screen) ? backendState.screen : null);
 
             // Check if screen is appropriate for user role
             const isAppropriateForRole = (screen) => {
-              if (backendState.role === 'driver') {
+              if (effectiveRole === 'driver') {
                 return !screen.includes('passenger') || ['profile'].includes(screen);
               } else {
                 return !screen.includes('driver') || ['profile'].includes(screen);
@@ -347,7 +434,7 @@ function App() {
             };
 
             if (targetScreen && isAppropriateForRole(targetScreen)) {
-              if (backendState.role === 'driver') {
+              if (effectiveRole === 'driver') {
                 if (backendState.driverStatus === 'suspended') {
                   setCurrentScreen('driverWallet');
                 } else if (backendState.driverStatus === 'rejected') {
@@ -365,7 +452,7 @@ function App() {
             } else {
               // Fallback routing
               console.log('[App] Invalid, auth, or inappropriate screen, routing to default');
-              if (backendState.role === 'driver') {
+              if (effectiveRole === 'driver') {
                 if (backendState.driverStatus === 'approved') setCurrentScreen('driverHome');
                 else if (backendState.driverStatus === 'pending') setCurrentScreen('verificationInProgress');
                 else if (backendState.driverStatus === 'suspended') setCurrentScreen('driverWallet');
@@ -379,8 +466,18 @@ function App() {
             console.log('[App] No backend state found, using localStorage role');
             const role = localStorage.getItem('userRole') || 'passenger';
             setUserRole(role);
-            if (role === 'driver') {
-              setCurrentScreen('driverDocuments');
+
+            const savedScreenLocal = localStorage.getItem('currentScreen');
+            const validScreensToRestore = new Set([
+              'driverHome', 'driverWallet', 'publishTrip', 'myTrips', 'bookingRequests', 'activeRide', 'rideOtpVerification',
+              'passengerHome', 'searchTrips', 'passengerProfile', 'passengerWallet', 'myBookings', 'rideHistory', 'passengerRideDetails', 'tripBooking', 'paymentScreen', 'profile'
+            ]);
+
+            if (savedScreenLocal && validScreensToRestore.has(savedScreenLocal)) {
+              console.log('[App] Restoring saved screen from local storage (backend missing):', savedScreenLocal);
+              setCurrentScreen(savedScreenLocal);
+            } else if (role === 'driver') {
+              setCurrentScreen('driverHome'); // Default to home, don't force them back to documents
             } else {
               setCurrentScreen('passengerHome');
             }
@@ -429,6 +526,7 @@ function App() {
 
       // ─── SIGNED_IN: Re-hydrate user role AND navigate for Auth ─────────
       if (_event === 'SIGNED_IN' && newSession?.user) {
+        registerPushNotifications(newSession.user.id);
         let backendState = await fetchStateFromBackend(newSession.user.id);
 
         const authScreens = ['authSelection', 'login', 'signup', 'roleSelection', 'onboarding', 'splash'];
@@ -472,11 +570,24 @@ function App() {
       // ─── SIGNED_OUT: Full state teardown ─────────────────────────────────
       if (_event === 'SIGNED_OUT') {
         console.log('[App] SIGNED_OUT event received');
-        // Targeted removal instead of localStorage.clear() to preserve onboarding state
+        
+        // Anti-flicker guard: if we are initializing, ignore random SIGNED_OUT events
+        if (isSessionInitializing) {
+           console.warn('[App] Ignored SIGNED_OUT during initialization.');
+           return;
+        }
+
+        // Clean up push token on the backend
+        removeFcmTokenFromDb().catch(e => console.warn('[App] SIGNED_OUT push clean failed:', e));
+
         localStorage.removeItem('currentScreen');
         localStorage.removeItem('userRole');
         localStorage.removeItem('xpool_manual_token');
         localStorage.removeItem('xpool-auth-token');
+        localStorage.removeItem('sb-' + import.meta.env.VITE_SUPABASE_URL.split('//')[1].split('.')[0] + '-auth-token');
+        localStorage.removeItem('selectedTrip');
+        localStorage.removeItem('passengerSearchParams');
+        localStorage.removeItem('paymentData');
         sessionStorage.clear();
         setUserRole(null);
         setCurrentScreen('roleSelection');
@@ -511,6 +622,20 @@ function App() {
       localStorage.removeItem('userRole');
     }
 
+    if (selectedTrip) {
+      localStorage.setItem('selectedTrip', JSON.stringify(selectedTrip));
+    } else {
+      localStorage.removeItem('selectedTrip');
+    }
+
+    localStorage.setItem('passengerSearchParams', JSON.stringify(passengerSearchParams));
+
+    if (paymentData) {
+      localStorage.setItem('paymentData', JSON.stringify(paymentData));
+    } else {
+      localStorage.removeItem('paymentData');
+    }
+
     // Backend Sync (debounced — avoid flooding on rapid navigation)
     if (session?.user) {
       const syncTimer = setTimeout(() => {
@@ -518,7 +643,7 @@ function App() {
       }, 500);
       return () => clearTimeout(syncTimer);
     }
-  }, [currentScreen, userRole, session]);
+  }, [currentScreen, userRole, session, selectedTrip, passengerSearchParams, paymentData]);
 
   // Stable reference via useCallback: prevents Splash.jsx from calling onFinish()
   // again on re-renders caused by session state updates during initialization.
@@ -714,8 +839,8 @@ function App() {
               setCurrentScreen('driverDocuments');
             }
           } else {
-            // Passenger logic
-            const safePassengerScreens = ['passengerHome', 'passengerProfile', 'paymentDetails', 'myBookings', 'rideHistory', 'profile'];
+            // Passenger logic - support expanding deep link screens globally
+            const safePassengerScreens = ['passengerHome', 'searchTrips', 'tripBooking', 'passengerRideDetails', 'passengerProfile', 'passengerWallet', 'paymentDetails', 'myBookings', 'rideHistory', 'paymentScreen', 'profile'];
             if (backendState.screen && safePassengerScreens.includes(backendState.screen)) {
               console.log('Navigating to saved screen:', backendState.screen);
               setCurrentScreen(backendState.screen);
@@ -1001,7 +1126,7 @@ function App() {
                 onBack={() => setCurrentScreen('driverHome')}
                 onRideStart={(trip) => {
                   setSelectedTrip(trip);
-                  setCurrentScreen('rideOtpVerification');
+                  setCurrentScreen('activeRide');
                 }}
                 session={session} // ADDED: Pass session for trip data
               />
@@ -1136,11 +1261,7 @@ function App() {
               <PassengerRideDetails
                 booking={selectedTrip}
                 onBack={() => setCurrentScreen(selectedTrip.status === 'completed' ? 'rideHistory' : 'myBookings')}
-                onPaymentRequired={(data) => {
-                  setPaymentData(data);
-                  setCurrentScreen('paymentScreen');
-                }}
-                session={session} // ADDED: Pass session
+                session={session}
               />
             )}
 

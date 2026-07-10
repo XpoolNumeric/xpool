@@ -174,7 +174,7 @@ export const getStorageAdapter = () => {
   if (isLocalStorageAvailable()) {
     return window.localStorage;
   }
-  
+
   // Minimal memory fallback if totally missing (unlikely in real browsers)
   return {
     _storage: new Map(),

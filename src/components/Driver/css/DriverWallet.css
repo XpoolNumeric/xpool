@@ -7,7 +7,7 @@
 
 .wallet-header {
     background-color: white;
-    padding: 1.25rem;
+    padding: calc(var(--safe-area-top) + 0.75rem) 1.25rem 1.25rem;
     display: flex;
     align-items: center;
     justify-content: space-between;

@@ -158,7 +158,7 @@ const SearchTrips = ({ onBack, onTripSelect, searchParams, session }) => {
             if (trips.length > 0) {
                 try {
                     const driverIds = [...new Set(trips.map(t => t.user_id || t.driver_id).filter(Boolean))];
-                    
+
                     if (driverIds.length > 0) {
                         const [{ data: profiles }, { data: driversResult }, { data: reviews }] = await Promise.all([
                             supabase.from('profiles').select('id, full_name, avatar_url').in('id', driverIds),
@@ -182,7 +182,7 @@ const SearchTrips = ({ onBack, onTripSelect, searchParams, session }) => {
                             const profile = profiles?.find(p => p.id === id);
                             const driver = driversResult?.find(d => d.user_id === id);
                             const ratingData = ratingsMap[id];
-                            
+
                             driverInfoMap[id] = {
                                 fullName: profile?.full_name || 'Driver',
                                 avatar: driver?.profile_photo_url || profile?.avatar_url || null,
@@ -252,10 +252,32 @@ const SearchTrips = ({ onBack, onTripSelect, searchParams, session }) => {
         return first.length > 12 ? first.substring(0, 12) + '...' : first;
     };
 
+    // Calculate dynamic sub-segment pricing relative to driver's full distance
+    const getDynamicPrice = (driverPrice, driverDistanceKm, passengerDistanceValueMeters) => {
+        if (!driverPrice || !driverDistanceKm || !passengerDistanceValueMeters) return driverPrice;
+        
+        const driverDistanceMeters = driverDistanceKm * 1000;
+        let ratio = passengerDistanceValueMeters / driverDistanceMeters;
+        
+        // Prevent overcharging if Google Maps route goes slightly over
+        if (ratio > 1) ratio = 1;
+        // Don't scale if they are basically taking the whole route (>90%)
+        if (ratio > 0.9) return driverPrice;
+        
+        let dynPrice = driverPrice * ratio;
+        
+        // Minimum realistic fare cap: e.g. 40 INR. But don't exceed original driver price.
+        const minFare = Math.min(40, driverPrice);
+        dynPrice = Math.max(dynPrice, minFare);
+        
+        // Round to nearest 5
+        return Math.round(dynPrice / 5) * 5;
+    };
+
     return (
         <div className="search-trips-layout">
-            
-            <div 
+
+            <div
                 className={`search-trips-sheet ${isExpanded ? 'expanded' : ''}`}
                 ref={sheetRef}
                 onTouchStart={handleTouchStart}
@@ -273,22 +295,22 @@ const SearchTrips = ({ onBack, onTripSelect, searchParams, session }) => {
                     <div className="route-pill-top">
                         <MapPin size={12} />
                         <span>{formatLocationShort(searchData.fromLocation)}</span>
-                        <span style={{color: '#f59e0b'}}>→</span>
+                        <span style={{ color: '#f59e0b' }}>→</span>
                         <span>{formatLocationShort(searchData.toLocation)}</span>
                     </div>
                 </div>
 
-                <div className="title-row" style={{position: 'relative'}}>
+                <div className="title-row" style={{ position: 'relative' }}>
                     <h1>Available Rides</h1>
-                    <button 
-                        className={`filter-btn-outline ${isFilterOpen ? 'active' : ''}`} 
+                    <button
+                        className={`filter-btn-outline ${isFilterOpen ? 'active' : ''}`}
                         onClick={() => setIsFilterOpen(!isFilterOpen)}
                     >
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                             <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
                         </svg>
                     </button>
-                    
+
                     {isFilterOpen && (
                         <div className="sort-dropdown" style={{
                             position: 'absolute', top: '100%', right: 0, marginTop: '8px',
@@ -296,33 +318,33 @@ const SearchTrips = ({ onBack, onTripSelect, searchParams, session }) => {
                             boxShadow: '0 4px 20px rgba(0,0,0,0.15)', zIndex: 100,
                             minWidth: '180px', border: '1px solid #fde68a'
                         }}>
-                            <div style={{fontSize: '0.75rem', fontWeight: 800, color: '#9ca3af', padding: '0.5rem', textTransform: 'uppercase'}}>Sort By</div>
-                            <button 
+                            <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#9ca3af', padding: '0.5rem', textTransform: 'uppercase' }}>Sort By</div>
+                            <button
                                 onClick={() => { setSortBy('earliest'); setIsFilterOpen(false); }}
                                 style={{
-                                    display: 'block', width: '100%', textAlign: 'left', padding: '0.75rem 1rem', 
-                                    background: sortBy === 'earliest' ? '#fffbeb' : 'transparent', border: 'none', 
-                                    borderRadius: '8px', color: sortBy === 'earliest' ? '#d97706' : '#4b5563', 
+                                    display: 'block', width: '100%', textAlign: 'left', padding: '0.75rem 1rem',
+                                    background: sortBy === 'earliest' ? '#fffbeb' : 'transparent', border: 'none',
+                                    borderRadius: '8px', color: sortBy === 'earliest' ? '#d97706' : '#4b5563',
                                     fontWeight: sortBy === 'earliest' ? 700 : 600, fontSize: '0.85rem'
                                 }}>
                                 Earliest Departure
                             </button>
-                            <button 
+                            <button
                                 onClick={() => { setSortBy('price_asc'); setIsFilterOpen(false); }}
                                 style={{
-                                    display: 'block', width: '100%', textAlign: 'left', padding: '0.75rem 1rem', 
-                                    background: sortBy === 'price_asc' ? '#fffbeb' : 'transparent', border: 'none', 
-                                    borderRadius: '8px', color: sortBy === 'price_asc' ? '#d97706' : '#4b5563', 
+                                    display: 'block', width: '100%', textAlign: 'left', padding: '0.75rem 1rem',
+                                    background: sortBy === 'price_asc' ? '#fffbeb' : 'transparent', border: 'none',
+                                    borderRadius: '8px', color: sortBy === 'price_asc' ? '#d97706' : '#4b5563',
                                     fontWeight: sortBy === 'price_asc' ? 700 : 600, fontSize: '0.85rem', marginTop: '4px'
                                 }}>
                                 Lowest Price
                             </button>
-                            <button 
+                            <button
                                 onClick={() => { setSortBy('price_desc'); setIsFilterOpen(false); }}
                                 style={{
-                                    display: 'block', width: '100%', textAlign: 'left', padding: '0.75rem 1rem', 
-                                    background: sortBy === 'price_desc' ? '#fffbeb' : 'transparent', border: 'none', 
-                                    borderRadius: '8px', color: sortBy === 'price_desc' ? '#d97706' : '#4b5563', 
+                                    display: 'block', width: '100%', textAlign: 'left', padding: '0.75rem 1rem',
+                                    background: sortBy === 'price_desc' ? '#fffbeb' : 'transparent', border: 'none',
+                                    borderRadius: '8px', color: sortBy === 'price_desc' ? '#d97706' : '#4b5563',
                                     fontWeight: sortBy === 'price_desc' ? 700 : 600, fontSize: '0.85rem', marginTop: '4px'
                                 }}>
                                 Highest Price
@@ -343,9 +365,9 @@ const SearchTrips = ({ onBack, onTripSelect, searchParams, session }) => {
                     </div>
                 ) : hasSearched && results.length === 0 ? (
                     <div className="empty-state">
-                        <Search size={48} color="#fcd34d" style={{marginBottom: '1rem'}} />
-                        <h3 style={{fontSize: '1.2rem', margin: '0 0 0.5rem', color: '#1f2937'}}>No rides found</h3>
-                        <p style={{fontSize: '0.85rem', color: '#6b7280'}}>Try adjusting your route, date or check back later.</p>
+                        <Search size={48} color="#fcd34d" style={{ marginBottom: '1rem' }} />
+                        <h3 style={{ fontSize: '1.2rem', margin: '0 0 0.5rem', color: '#1f2937' }}>No rides found</h3>
+                        <p style={{ fontSize: '0.85rem', color: '#6b7280' }}>Try adjusting your route, date or check back later.</p>
                     </div>
                 ) : (
                     hasSearched && (
@@ -355,18 +377,28 @@ const SearchTrips = ({ onBack, onTripSelect, searchParams, session }) => {
                             </div>
 
                             <div className="rides-list">
-                                {sortedResults.map(trip => (
-                                    <div
-                                        key={trip.id}
-                                        className="ride-card"
-                                        onClick={() => onTripSelect(trip)}
-                                    >
-                                        <div className="card-left">
+                                {sortedResults.map(trip => {
+                                    const displayPrice = routeInfo 
+                                        ? getDynamicPrice(trip.price_per_seat, trip.distance_km, routeInfo.distanceValue) 
+                                        : trip.price_per_seat;
+
+                                    return (
+                                        <div
+                                            key={trip.id}
+                                            className="ride-card"
+                                            onClick={() => onTripSelect({
+                                                ...trip,
+                                                searched_from: searchData.fromLocation,
+                                                searched_to: searchData.toLocation,
+                                                agreed_price: displayPrice
+                                            })}
+                                        >
+                                            <div className="card-left">
                                             <div className="avatar-wrapper" style={{ padding: trip.extended_driver_info?.avatar ? '0' : undefined, overflow: 'hidden' }}>
                                                 {trip.extended_driver_info?.avatar ? (
-                                                    <img 
-                                                        src={trip.extended_driver_info.avatar} 
-                                                        alt="Driver" 
+                                                    <img
+                                                        src={trip.extended_driver_info.avatar}
+                                                        alt="Driver"
                                                     />
                                                 ) : (
                                                     <User size={24} />
@@ -377,7 +409,7 @@ const SearchTrips = ({ onBack, onTripSelect, searchParams, session }) => {
                                                 <div className="driver-name-row">
                                                     <h3>{trip.extended_driver_info?.fullName || trip.driver_name || 'Driver'}</h3>
                                                     <svg className="verified-badge" viewBox="0 0 24 24" fill="currentColor">
-                                                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+                                                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
                                                     </svg>
                                                 </div>
 
@@ -402,7 +434,7 @@ const SearchTrips = ({ onBack, onTripSelect, searchParams, session }) => {
                                                 <div className="driver-actual-route" style={{ marginTop: '8px', padding: '6px 10px', background: '#fdfce8', border: '1px solid #fef08a', borderRadius: '6px', fontSize: '0.75rem', fontWeight: '700', color: '#854d0e', display: 'inline-flex', alignItems: 'center', gap: '4px', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
                                                     <MapPin size={12} color="#eab308" />
                                                     <span>{formatLocationShort(trip.from_location)}</span>
-                                                    <span style={{color: '#d97706', margin: '0 2px'}}>→</span>
+                                                    <span style={{ color: '#d97706', margin: '0 2px' }}>→</span>
                                                     <span>{formatLocationShort(trip.to_location)}</span>
                                                 </div>
 
@@ -413,13 +445,13 @@ const SearchTrips = ({ onBack, onTripSelect, searchParams, session }) => {
                                         <div className="card-right">
                                             <div className="price-block">
                                                 <span className="currency-symbol">₹</span>
-                                                <span className="price-amount">{trip.price_per_seat || '—'}</span>
+                                                <span className="price-amount">{displayPrice || '—'}</span>
                                             </div>
-                                            
-                                            {trip.price_per_seat && (
+
+                                            {displayPrice && (
                                                 <div className="save-pill">
-                                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-                                                    Save ₹{Math.floor(trip.price_per_seat * 0.05)}
+                                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" /></svg>
+                                                    Save ₹{Math.floor(displayPrice * 0.05)}
                                                 </div>
                                             )}
 
@@ -438,7 +470,7 @@ const SearchTrips = ({ onBack, onTripSelect, searchParams, session }) => {
                                             </div>
                                         </div>
                                     </div>
-                                ))}
+                                )})}
                             </div>
                         </>
                     )

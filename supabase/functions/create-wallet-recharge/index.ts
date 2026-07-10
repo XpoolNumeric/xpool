@@ -141,7 +141,8 @@ serve(async (req) => {
                 success: true,
                 payment_session_id: cashfreeData.payment_session_id,
                 order_id: orderId,
-                recharge_id: recharge.id
+                recharge_id: recharge.id,
+                environment: env
             }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
         )

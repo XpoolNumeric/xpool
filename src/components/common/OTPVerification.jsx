@@ -158,23 +158,6 @@ const OTPVerification = ({ onBack, onVerify, phoneNumber, isSignupFlow = false, 
     }
   };
 
-  // Virtual Numeric Keypad handlers
-  const handleKeypadClick = (num) => {
-    const firstEmptyIndex = otp.findIndex(val => val === '');
-    if (firstEmptyIndex !== -1) {
-      handleChange(firstEmptyIndex, num.toString());
-    }
-  };
-
-  const handleBackspace = () => {
-    const lastFilledIndex = otp.map((val, i) => val !== '' ? i : -1).reduce((a, b) => Math.max(a, b), -1);
-    if (lastFilledIndex !== -1) {
-      const newOtp = [...otp];
-      newOtp[lastFilledIndex] = '';
-      setOtp(newOtp);
-      inputRefs[lastFilledIndex].current?.focus();
-    }
-  };
 
   const maskedPhone = phoneNumber
     ? phoneNumber.replace(/(\+\d{2})(\d+)(\d{4})/, (_, a, b, c) => a + '*'.repeat(b.length) + c)
@@ -208,90 +191,72 @@ const OTPVerification = ({ onBack, onVerify, phoneNumber, isSignupFlow = false, 
           initial="hidden"
           animate="visible"
         >
-        {/* Title & Subtitle */}
-        <motion.h1 className="otp-title" variants={itemVariants}>
-          {isSignupFlow ? 'Verify Mobile OTP' : 'Enter OTP'}
-        </motion.h1>
-        
-        <motion.p className="otp-subtitle" variants={itemVariants}>
-          Code sent to <span className="otp-highlight">{maskedPhone || phoneNumber}</span>
-        </motion.p>
+          {/* Title & Subtitle */}
+          <motion.h1 className="otp-title" variants={itemVariants}>
+            {isSignupFlow ? 'Verify Mobile OTP' : 'Enter OTP'}
+          </motion.h1>
 
-        {/* OTP Input Card */}
-        <motion.div className="otp-input-card" variants={itemVariants}>
-          <div className="otp-input-row">
-            {otp.map((digit, index) => (
-              <input
-                key={index}
-                ref={inputRefs[index]}
-                type="text"
-                inputMode="numeric"
-                maxLength="1"
-                className="otp-digit-box"
-                value={digit}
-                onChange={(e) => handleChange(index, e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && otp.join('').length === 6) {
-                    handleVerify();
-                  } else {
-                    handleKeyDown(index, e);
-                  }
-                }}
-                autoFocus={index === 0}
-              />
-            ))}
-          </div>
-        </motion.div>
+          <motion.p className="otp-subtitle" variants={itemVariants}>
+            Code sent to <span className="otp-highlight">{maskedPhone || phoneNumber}</span>
+          </motion.p>
 
-        {/* Numeric Keypad Simulation */}
-        <motion.div className="otp-keypad" variants={itemVariants}>
-          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
-            <button
-              key={num}
-              className="otp-key"
-              onClick={() => handleKeypadClick(num)}
-            >
-              {num}
-            </button>
-          ))}
-          <div className="otp-key-spacer" />
-          <button className="otp-key" onClick={() => handleKeypadClick(0)}>
-            0
-          </button>
-          <button className="otp-key otp-key-backspace" onClick={handleBackspace}>
-            ⌫
-          </button>
-        </motion.div>
+          {/* OTP Input Card */}
+          <motion.div className="otp-input-card" variants={itemVariants}>
+            <div className="otp-input-row">
+              {otp.map((digit, index) => (
+                <input
+                  key={index}
+                  ref={inputRefs[index]}
+                  type="text"
+                  inputMode="numeric"
+                  maxLength="1"
+                  className="otp-digit-box"
+                  value={digit}
+                  onChange={(e) => handleChange(index, e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && otp.join('').length === 6) {
+                      handleVerify();
+                    } else {
+                      handleKeyDown(index, e);
+                    }
+                  }}
+                  autoFocus={index === 0}
+                />
+              ))}
+            </div>
+          </motion.div>
+
+
 
         </motion.div>
       </div>
 
       {/* Bottom Section */}
       <motion.div className="otp-bottom-section" variants={itemVariants}>
-          <div className="otp-resend-container">
-            <span className="otp-resend-text">Didn't receive code?</span>
-            <button
-              className="otp-resend-btn"
-              onClick={handleResendOtp}
-              disabled={resending}
-            >
-              {resending ? <RefreshCw size={14} className="otp-spin-icon" /> : 'Resend'}
-            </button>
-          </div>
-
-          <motion.button
-            type="button"
-            className="otp-cta"
-            disabled={loading || otp.join('').length !== 6}
-            whileHover={{ scale: (loading || otp.join('').length !== 6) ? 1 : 1.02 }}
-            whileTap={{ scale: (loading || otp.join('').length !== 6) ? 1 : 0.97 }}
-            onClick={handleVerify}
+        <div className="otp-resend-container">
+          <span className="otp-resend-text">Didn't receive code?</span>
+          <button
+            className="otp-resend-btn"
+            onClick={handleResendOtp}
+            disabled={resending}
           >
-            <span>{loading ? 'Verifying…' : 'Verify & Continue'}</span>
-            {!loading && <ArrowRight size={20} strokeWidth={2.5} />}
-            {loading && <div className="otp-spinner" />}
-          </motion.button>
-        </motion.div>
+            {resending ? <RefreshCw size={14} className="otp-spin-icon" /> : 'Resend'}
+          </button>
+        </div>
+
+        <motion.button
+          type="button"
+          className="otp-cta"
+          disabled={loading || otp.join('').length !== 6}
+          whileHover={{ scale: (loading || otp.join('').length !== 6) ? 1 : 1.02 }}
+          whileTap={{ scale: (loading || otp.join('').length !== 6) ? 1 : 0.97 }}
+          onClick={handleVerify}
+        >
+          <span>{loading ? 'Verifying…' : 'Verify & Continue'}</span>
+          {!loading && <ArrowRight size={20} strokeWidth={2.5} />}
+          {loading && <div className="otp-spinner" />}
+        </motion.button>
+      </motion.div>
     </div>
   );
 };

@@ -52,7 +52,7 @@ serve(async (req) => {
         // 4. Get the booking
         const { data: booking, error: bookingError } = await supabaseAdmin
             .from('booking_requests')
-            .select('id, passenger_id, seats_requested, drop_status')
+            .select('id, passenger_id, seats_requested, drop_status, agreed_price')
             .eq('id', booking_id)
             .eq('trip_id', trip_id)
             .single()
@@ -78,7 +78,8 @@ serve(async (req) => {
         if (dropError) throw dropError
 
         // 6. Calculate payment
-        const totalAmount = trip.price_per_seat * booking.seats_requested
+        const pricePerSeat = booking.agreed_price ? Number(booking.agreed_price) : trip.price_per_seat
+        const totalAmount = pricePerSeat * booking.seats_requested
         const commissionAmount = Math.round(totalAmount * COMMISSION_RATE * 100) / 100
         const driverAmount = Math.round((totalAmount - commissionAmount) * 100) / 100
 

@@ -44,7 +44,7 @@ serve(async (req) => {
 
         if (tripError || !trip) throw new Error('Trip not found')
         if (trip.user_id !== user.id) throw new Error('Not authorized — you do not own this trip')
-        if (trip.status === 'in_progress') throw new Error('Ride already started')
+        // if (trip.status === 'in_progress') throw new Error('Ride already started')
 
         // 4. Get all approved bookings for this trip (include otp_code to check if already generated)
         const { data: bookings, error: bookingsError } = await supabaseAdmin

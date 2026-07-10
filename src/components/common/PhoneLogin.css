@@ -68,7 +68,7 @@
   font-family: var(--pl-font);
   background: linear-gradient(155deg, #ffffff 0%, #fffdf8 40%, #ffffff 100%);
   isolation: isolate;
-  padding: 60px 24px 32px 24px;
+  padding: calc(var(--safe-area-top) + 36px) 24px 32px 24px;
 }
 
 /* ─── Mesh Background ──────────────────────────────────────────────────── */
@@ -498,7 +498,7 @@
 
 @media (max-width: 480px) {
   .pl-root {
-    padding: 48px 16px 24px 16px;
+    padding: calc(var(--safe-area-top) + 24px) 16px 24px 16px;
   }
 
   .pl-title {

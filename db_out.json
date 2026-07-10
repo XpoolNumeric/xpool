@@ -1,0 +1,72 @@
+{
+  "wallets": [],
+  "txs": [],
+  "payments": [
+    {
+      "id": "46b39b96-394e-44de-bb13-814c15b16002",
+      "trip_id": "e9034107-88c3-4e00-ae33-3e43b2fec7a6",
+      "booking_id": "7172b399-14b3-4ff8-869d-c214f03b853b",
+      "passenger_id": "e0f32ec6-ba92-499e-8675-eeac94065ca9",
+      "driver_id": "c8001cf0-7a90-4ae0-af5c-0c00437c60dd",
+      "total_amount": 760,
+      "commission_amount": 114,
+      "driver_amount": 646,
+      "payment_status": "pending",
+      "cashfree_order_id": null,
+      "cashfree_payment_id": null,
+      "created_at": "2026-03-28T06:53:09.125008+00:00",
+      "paid_at": "2026-03-28T06:53:08.999+00:00"
+    },
+    {
+      "id": "9ab7ac1c-2bc1-400a-bbc5-11a8dc4b91f9",
+      "trip_id": "3560aa87-f802-415b-bdea-c062ad2cce5b",
+      "booking_id": "6b01aec1-8147-41ba-b90d-453d04a894c2",
+      "passenger_id": "c8001cf0-7a90-4ae0-af5c-0c00437c60dd",
+      "driver_id": "070a67bf-68c0-41c3-a8c7-4016fb1bf6bb",
+      "total_amount": 1350,
+      "commission_amount": 202.5,
+      "driver_amount": 1147.5,
+      "payment_status": "pending",
+      "cashfree_order_id": "order_9ab7ac1c2bc1400a_1774848765843",
+      "cashfree_payment_id": null,
+      "created_at": "2026-03-30T05:32:45.721286+00:00",
+      "paid_at": "2026-03-30T05:33:14.999+00:00"
+    },
+    {
+      "id": "10f3be15-5f7e-4956-9c77-111a30d69e64",
+      "trip_id": "5e965e1a-139a-4cb4-ac34-3f58139a507e",
+      "booking_id": "c9bab359-d7fe-49bf-a128-26d8009ab868",
+      "passenger_id": "c8001cf0-7a90-4ae0-af5c-0c00437c60dd",
+      "driver_id": "070a67bf-68c0-41c3-a8c7-4016fb1bf6bb",
+      "total_amount": 520,
+      "commission_amount": 78,
+      "driver_amount": 442,
+      "payment_status": "pending",
+      "cashfree_order_id": null,
+      "cashfree_payment_id": null,
+      "created_at": "2026-03-30T09:25:36.069719+00:00",
+      "paid_at": "2026-03-30T09:25:35.907+00:00"
+    }
+  ],
+  "trips": [
+    {
+      "id": "5e965e1a-139a-4cb4-ac34-3f58139a507e",
+      "status": "completed",
+      "user_id": "070a67bf-68c0-41c3-a8c7-4016fb1bf6bb",
+      "price_per_seat": 520
+    },
+    {
+      "id": "e9034107-88c3-4e00-ae33-3e43b2fec7a6",
+      "status": "completed",
+      "user_id": "c8001cf0-7a90-4ae0-af5c-0c00437c60dd",
+      "price_per_seat": 760
+    },
+    {
+      "id": "3560aa87-f802-415b-bdea-c062ad2cce5b",
+      "status": "completed",
+      "user_id": "070a67bf-68c0-41c3-a8c7-4016fb1bf6bb",
+      "price_per_seat": 450
+    }
+  ],
+  "bookings": []
+}

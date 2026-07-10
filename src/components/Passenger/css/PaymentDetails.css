@@ -21,7 +21,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 1rem 1.5rem;
+    padding: calc(var(--safe-area-top) + 0.75rem) 1.5rem 0.75rem;
     background: var(--bg-white);
     box-shadow: var(--shadow-md);
     position: sticky;
@@ -545,7 +545,7 @@
 /* Mobile Responsiveness */
 @media (max-width: 480px) {
     .payment-header {
-        padding: 1rem;
+        padding: calc(var(--safe-area-top) + 0.75rem) 1rem 0.75rem;
     }
     
     .payment-content {

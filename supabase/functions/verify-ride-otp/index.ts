@@ -105,57 +105,12 @@ serve(async (req) => {
 
         if (verifyError) throw verifyError
 
-        // 7. Check if ALL passengers for this trip are verified
-        const { data: allBookings, error: allError } = await supabaseAdmin
-            .from('booking_requests')
-            .select('id, otp_verified')
-            .eq('trip_id', trip_id)
-            .eq('status', 'approved')
-
-        if (allError) throw allError
-
-        const allVerified = allBookings.every(b => b.otp_verified === true)
-
-        // 8. If all verified, start the ride
-        if (allVerified) {
-            await supabaseAdmin
-                .from('trips')
-                .update({
-                    status: 'in_progress',
-                    started_at: new Date().toISOString()
-                })
-                .eq('id', trip_id)
-
-            // Broadcast ride started to all passengers
-            for (const b of allBookings) {
-                try {
-                    const { data: bk } = await supabaseAdmin
-                        .from('booking_requests')
-                        .select('passenger_id')
-                        .eq('id', b.id)
-                        .single()
-
-                    if (bk) {
-                        const channel = supabaseAdmin.channel(`passenger_${bk.passenger_id}`)
-                        await channel.send({
-                            type: 'broadcast',
-                            event: 'ride_started',
-                            payload: { trip_id, message: 'Your ride has started!' }
-                        })
-                        supabaseAdmin.removeChannel(channel)
-                    }
-                } catch (broadcastErr) {
-                    console.error('Broadcast error (non-critical):', broadcastErr)
-                }
-            }
-        }
-
+        // 8. Simplified response for dynamic partial verification
         return new Response(
             JSON.stringify({
                 success: true,
                 verified: true,
-                all_verified: allVerified,
-                message: allVerified ? 'All passengers verified! Ride started!' : 'Passenger verified successfully'
+                message: 'Passenger verified successfully'
             }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
         )

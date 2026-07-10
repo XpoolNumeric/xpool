@@ -27,7 +27,13 @@ const ActiveRide = ({ trip: initialTrip, onBack }) => {
     const [dropTarget, setDropTarget] = useState(null); // passenger being drop-confirmed
     const [cashConfirmVisible, setCashConfirmVisible] = useState(false);
     const [dropOptionsVisible, setDropOptionsVisible] = useState(false);
-    const [processingPayment, setProcessingPayment] = useState(false);
+    const [processingPaymentId, setProcessingPaymentId] = useState(null); // tracks which passenger's payment is being verified
+
+    // OTP Verification State
+    const [showOtpModal, setShowOtpModal] = useState(false);
+    const [otpTarget, setOtpTarget] = useState(null);
+    const [otpInput, setOtpInput] = useState('');
+    const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
 
     // Swipe state
     const [swipeProgress, setSwipeProgress] = useState(0);
@@ -128,6 +134,11 @@ const ActiveRide = ({ trip: initialTrip, onBack }) => {
                     drop_status,
                     passenger_id,
                     payment_mode,
+                    otp_verified,
+                    otp_code,
+                    passenger_location,
+                    passenger_destination,
+                    agreed_price,
                     ride_payments ( id, payment_status, total_amount )
                 `)
                 .eq('trip_id', trip.id)
@@ -159,6 +170,30 @@ const ActiveRide = ({ trip: initialTrip, onBack }) => {
             });
 
             setPassengers(bookingsWithProfiles);
+
+            const needsOtp = bookingsWithProfiles.some(b => !b.otp_verified && !b.otp_code);
+            if (needsOtp) {
+                const { data: { session } } = await supabase.auth.getSession();
+                const { error: otpError } = await supabase.functions.invoke('generate-ride-otp', {
+                    body: { trip_id: trip.id },
+                    headers: { Authorization: `Bearer ${session?.access_token}` }
+                });
+                if (!otpError) {
+                    // Refetch quietly once to get the new OTP codes
+                    const { data: refreshedBookings } = await supabase
+                        .from('booking_requests')
+                        .select('id, otp_verified, otp_code')
+                        .eq('trip_id', trip.id)
+                        .in('status', ['approved', 'in_progress', 'completed']);
+                    
+                    if (refreshedBookings) {
+                        setPassengers(prev => prev.map(p => {
+                            const latest = refreshedBookings.find(rb => rb.id === p.id);
+                            return latest ? { ...p, otp_code: latest.otp_code, otp_verified: latest.otp_verified } : p;
+                        }));
+                    }
+                }
+            }
         } catch (error) {
             console.error('Error fetching passengers:', error);
             toast.error('Failed to load passengers');
@@ -265,6 +300,16 @@ const ActiveRide = ({ trip: initialTrip, onBack }) => {
         }
     };
 
+    // Auto-expand sheet when user scrolls content, collapse when back at top
+    const handleContentScroll = (e) => {
+        const scrollTop = e.target.scrollTop;
+        if (scrollTop > 5 && sheetHeight < 84) {
+            setSheetHeight(85);
+        } else if (scrollTop === 0 && sheetHeight >= 84) {
+            setSheetHeight(45);
+        }
+    };
+
     // Attach non-passive touch listeners so e.preventDefault() works
     useEffect(() => {
         const el = sheetRef.current;
@@ -278,6 +323,48 @@ const ActiveRide = ({ trip: initialTrip, onBack }) => {
             el.removeEventListener('touchend', handleSheetTouchEnd);
         };
     });
+
+    // ── OTP Verification Flow ──────────────────────────────────
+    const handleVerifyOtp = async () => {
+        if (!otpTarget || otpInput.length !== 4) {
+            toast.error('Please enter a valid 4-digit OTP');
+            return;
+        }
+
+        setIsVerifyingOtp(true);
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const { data, error } = await supabase.functions.invoke('verify-ride-otp', {
+                body: {
+                    trip_id: trip.id,
+                    booking_id: otpTarget.id,
+                    otp: otpInput
+                },
+                headers: { Authorization: `Bearer ${session?.access_token}` }
+            });
+
+            if (error) throw error;
+
+            if (data.success) {
+                toast.success('Passenger successfully verified! ✅');
+                setOtpInput('');
+                setShowOtpModal(false);
+                setOtpTarget(null);
+
+                // Update local state to reflect verification
+                setPassengers(prev => prev.map(p =>
+                    p.id === otpTarget.id ? { ...p, otp_verified: true } : p
+                ));
+            } else {
+                toast.error(data.message || 'Invalid OTP');
+            }
+        } catch (err) {
+            console.error('OTP Verification Error:', err);
+            toast.error('Failed to verify OTP');
+        } finally {
+            setIsVerifyingOtp(false);
+        }
+    };
 
     // ── Drop Flow ──────────────────────────────────────────────
     const initiateDropPassenger = (passenger) => {
@@ -297,7 +384,7 @@ const ActiveRide = ({ trip: initialTrip, onBack }) => {
     };
 
     const checkOnlinePaymentAndDrop = async (passenger) => {
-        setProcessingPayment(true);
+        setProcessingPaymentId(passenger.passenger_id);
         try {
             // Re-fetch payment status from DB
             const { data, error } = await supabase
@@ -319,14 +406,14 @@ const ActiveRide = ({ trip: initialTrip, onBack }) => {
             console.error('Payment check error:', err);
             toast.error('Could not verify payment');
         } finally {
-            setProcessingPayment(false);
+            setProcessingPaymentId(null);
         }
     };
 
     const handleCashConfirmed = async () => {
         if (!dropTarget) return;
         const targetCopy = { ...dropTarget }; // capture before any state resets
-        setProcessingPayment(true);
+        setProcessingPaymentId(targetCopy.passenger_id);
         try {
             // Call verify-cash-payment to mark as paid
             const { data, error } = await supabase.functions.invoke('verify-cash-payment', {
@@ -349,7 +436,7 @@ const ActiveRide = ({ trip: initialTrip, onBack }) => {
             setCashConfirmVisible(false);
             setDropTarget(null);
         } finally {
-            setProcessingPayment(false);
+            setProcessingPaymentId(null);
         }
     };
 
@@ -508,7 +595,9 @@ const ActiveRide = ({ trip: initialTrip, onBack }) => {
 
     // ── Helpers ────────────────────────────────────────────────
     const getPassengerAmount = (p) => {
-        return p.ride_payment?.total_amount || (p.seats_requested * trip.price_per_seat);
+        if (p.ride_payment?.total_amount) return p.ride_payment.total_amount;
+        if (p.agreed_price) return p.agreed_price;
+        return p.seats_requested * trip.price_per_seat;
     };
 
     const getPaymentBadge = (p) => {
@@ -583,7 +672,7 @@ const ActiveRide = ({ trip: initialTrip, onBack }) => {
                 <div className="sheet-drag-handle">
                     <div className="sheet-handle-bar" />
                 </div>
-                <div className="sheet-scroll-content" ref={scrollContentRef}>
+                <div className="sheet-scroll-content" ref={scrollContentRef} onScroll={handleContentScroll}>
                 <div className="navigation-card">
                     <div className="route-info-flow">
                         <div className="stop">
@@ -642,6 +731,20 @@ const ActiveRide = ({ trip: initialTrip, onBack }) => {
                                                     {badge.text}
                                                 </span>
                                             </div>
+                                            <div className="p-drop-location" style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '5px' }}>
+                                                    <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#3b82f6', marginTop: '4px', flexShrink: 0 }}></div>
+                                                    <span style={{ display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: '1.3' }}>
+                                                        {p.passenger_location || trip.from_location}
+                                                    </span>
+                                                </div>
+                                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '5px' }}>
+                                                    <MapPin size={10} color="#dc2626" style={{ minWidth: '10px', marginTop: '3px', flexShrink: 0 }} />
+                                                    <span style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: '1.3' }}>
+                                                        {p.passenger_destination || trip.to_location}
+                                                    </span>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                     <div className="p-actions">
@@ -651,17 +754,31 @@ const ActiveRide = ({ trip: initialTrip, onBack }) => {
                                                 <span>Dropped</span>
                                             </div>
                                         ) : trip.status === 'in_progress' ? (
-                                            <button
-                                                className="drop-btn"
-                                                onClick={() => initiateDropPassenger(p)}
-                                                disabled={isDroppingThis || processingPayment}
-                                            >
-                                                {isDroppingThis ? (
-                                                    <><Loader2 size={16} className="spinning-loader" /> Dropping...</>
-                                                ) : (
-                                                    <><MapPin size={16} /> Drop</>
-                                                )}
-                                            </button>
+                                            !p.otp_verified ? (
+                                                <button
+                                                    className="drop-btn verify"
+                                                    style={{ backgroundColor: '#f59e0b', borderColor: '#f59e0b', color: '#fff' }}
+                                                    onClick={() => {
+                                                        setOtpTarget(p);
+                                                        setOtpInput('');
+                                                        setShowOtpModal(true);
+                                                    }}
+                                                >
+                                                    <CheckCircle size={16} /> Verify
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    className="drop-btn"
+                                                    onClick={() => initiateDropPassenger(p)}
+                                                    disabled={isDroppingThis || processingPaymentId === p.passenger_id}
+                                                >
+                                                    {isDroppingThis ? (
+                                                        <><Loader2 size={16} className="spinning-loader" /> Dropping...</>
+                                                    ) : (
+                                                        <><MapPin size={16} /> Drop</>
+                                                    )}
+                                                </button>
+                                            )
                                         ) : (
                                             <div className="status-badge pending">
                                                 <Clock size={14} />
@@ -728,6 +845,67 @@ const ActiveRide = ({ trip: initialTrip, onBack }) => {
                 </div>
             )}
 
+            {/* OTP Verification Modal */}
+            {showOtpModal && otpTarget && (
+                <div className="modal-overlay" onClick={() => !isVerifyingOtp && setShowOtpModal(false)}>
+                    <div className="cash-confirm-modal" onClick={e => e.stopPropagation()}>
+                        <div className="modal-icon" style={{ backgroundColor: '#fef3c7' }}>
+                            <CheckCircle size={32} color="#f59e0b" />
+                        </div>
+                        <h3>Verify Passenger</h3>
+                        <p className="modal-passenger">{otpTarget.profiles?.full_name}</p>
+                        <p className="modal-subtitle">Ask this passenger for their 4-digit Ride OTP.</p>
+
+                        <div className="otp-input-container" style={{ margin: '1.5rem 0', display: 'flex', justifyContent: 'center' }}>
+                            <input
+                                type="text"
+                                inputMode="numeric"
+                                placeholder="• • • •"
+                                value={otpInput}
+                                onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                                maxLength={4}
+                                disabled={isVerifyingOtp}
+                                style={{
+                                    fontSize: '2rem',
+                                    letterSpacing: '1rem',
+                                    textAlign: 'center',
+                                    width: '100%',
+                                    maxWidth: '200px',
+                                    padding: '10px',
+                                    borderRadius: '12px',
+                                    border: '2px solid #e2e8f0',
+                                    outline: 'none',
+                                    backgroundColor: '#f8fafc'
+                                }}
+                                autoFocus
+                            />
+                        </div>
+
+                        <div className="modal-actions">
+                            <button
+                                className="modal-btn cancel"
+                                onClick={() => setShowOtpModal(false)}
+                                disabled={isVerifyingOtp}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                className="modal-btn confirm"
+                                style={{ backgroundColor: '#f59e0b', color: '#fff' }}
+                                onClick={handleVerifyOtp}
+                                disabled={isVerifyingOtp || otpInput.length !== 4}
+                            >
+                                {isVerifyingOtp ? (
+                                    <><Loader2 size={16} className="spinning-loader" /> Verifying...</>
+                                ) : (
+                                    <>Verify</>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Cash Payment Confirmation Modal */}
             {cashConfirmVisible && dropTarget && (
                 <div className="modal-overlay" onClick={() => { setCashConfirmVisible(false); setDropTarget(null); }}>
@@ -744,16 +922,16 @@ const ActiveRide = ({ trip: initialTrip, onBack }) => {
                             <button
                                 className="modal-btn cancel"
                                 onClick={() => { setCashConfirmVisible(false); setDropTarget(null); }}
-                                disabled={processingPayment}
+                                disabled={processingPaymentId !== null}
                             >
                                 Not Yet
                             </button>
                             <button
                                 className="modal-btn confirm"
                                 onClick={handleCashConfirmed}
-                                disabled={processingPayment}
+                                disabled={processingPaymentId !== null}
                             >
-                                {processingPayment ? (
+                                {processingPaymentId !== null ? (
                                     <><Loader2 size={16} className="spinning-loader" /> Verifying...</>
                                 ) : (
                                     <>Yes, Cash Received</>
@@ -783,7 +961,7 @@ const ActiveRide = ({ trip: initialTrip, onBack }) => {
                                     setDropOptionsVisible(false);
                                     checkOnlinePaymentAndDrop(dropTarget);
                                 }}
-                                disabled={processingPayment}
+                                disabled={processingPaymentId !== null}
                             >
                                 <CreditCard size={18} />
                                 Verify Online Payment
@@ -794,7 +972,7 @@ const ActiveRide = ({ trip: initialTrip, onBack }) => {
                                     setDropOptionsVisible(false);
                                     setCashConfirmVisible(true);
                                 }}
-                                disabled={processingPayment}
+                                disabled={processingPaymentId !== null}
                             >
                                 <Banknote size={18} />
                                 Paid via Cash

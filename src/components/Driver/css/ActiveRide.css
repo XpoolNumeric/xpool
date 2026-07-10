@@ -23,7 +23,7 @@
             rgba(255, 255, 255, 0.96) 0%,
             rgba(255, 255, 255, 0.88) 70%,
             rgba(255, 255, 255, 0) 100%);
-    padding: calc(1.2rem + env(safe-area-inset-top, 20px)) 1.25rem 1.5rem;
+    padding: calc(var(--safe-area-top) + 1.25rem) 1.25rem 1.25rem;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -118,7 +118,7 @@
 /* ─── ROUTE INFO PILL (floating on map) ─── */
 .route-info-card {
     position: absolute;
-    top: calc(4.8rem + env(safe-area-inset-top, 20px));
+    top: calc(var(--safe-area-top) + 5.5rem);
     left: 50%;
     transform: translateX(-50%);
     background: rgba(255, 255, 255, 0.95);

@@ -53,28 +53,25 @@ serve(async (req) => {
         const { data: trip, error: tripError } = await supabaseClient
             .from('trips')
             .select(`
-        *,
-        booking_requests (
-          id,
-          status,
-          verified_at,
-          passenger_id,
-          passengers:passenger_id (
-            full_name,
-            phone
-          )
-        )
-      `)
+                *,
+                booking_requests (
+                id,
+                status,
+                otp_verified,
+                passenger_id
+                )
+            `)
             .eq('id', tripId)
             .eq('user_id', driverId)
             .single()
 
         if (tripError || !trip) {
+            console.error('[validate-trip-start] Error fetching trip:', tripError);
             return new Response(
                 JSON.stringify({
                     success: false,
                     canStart: false,
-                    error: 'Trip not found or unauthorized',
+                    error: tripError?.message || 'Trip not found or unauthorized',
                     code: 'TRIP_NOT_FOUND'
                 }),
                 { status: 404, headers: corsHeaders }
@@ -82,12 +79,12 @@ serve(async (req) => {
         }
 
         // 2. Validate trip status
-        if (trip.status !== 'active') {
+        if (trip.status !== 'active' && trip.status !== 'full') {
             return new Response(
                 JSON.stringify({
                     success: false,
                     canStart: false,
-                    error: `Trip is ${trip.status.replace('_', ' ')}, not active`,
+                    error: `Trip is ${trip.status.replace('_', ' ')}, cannot start.`,
                     code: 'INVALID_STATUS',
                     currentStatus: trip.status
                 }),
@@ -123,11 +120,11 @@ serve(async (req) => {
 
         // 4. Get verified and pending passengers
         const verifiedPassengers = trip.booking_requests?.filter(
-            (b: any) => b.status === 'approved' && b.verified_at
+            (b: any) => b.status === 'approved' && b.otp_verified
         ) || []
 
         const pendingPassengers = trip.booking_requests?.filter(
-            (b: any) => b.status === 'approved' && !b.verified_at
+            (b: any) => b.status === 'approved' && !b.otp_verified
         ) || []
 
         // 5. Get driver's recent stats
@@ -178,72 +175,69 @@ serve(async (req) => {
             // Get all approved passengers for this trip and notify them
             const approvedBookings = trip.booking_requests?.filter((b: any) => b.status === 'approved') || []
 
-            for (const booking of approvedBookings) {
-                const passengerId = booking.passenger_id
+            const sendAllNotifications = async () => {
+                const notificationPromises = approvedBookings.map(async (booking: any) => {
+                    const passengerId = booking.passenger_id
 
-                // Insert DB notification
-                try {
-                    await supabaseAdmin.from('notifications').insert({
-                        user_id: passengerId,
-                        type: 'ride_started',
-                        title: '🚗 Your Ride Has Started!',
-                        message: `${driverName} has started the journey. Track live in the app.`,
-                        data: { trip_id: tripId, booking_id: booking.id }
-                    })
-                } catch (notifErr) {
-                    console.error('[validate-trip-start] Notification insert error (non-critical):', notifErr)
-                }
+                    try {
+                        // 1. Insert DB notification
+                        await supabaseAdmin.from('notifications').insert({
+                            user_id: passengerId,
+                            type: 'ride_started',
+                            title: '🚗 Your Ride Has Started!',
+                            message: `${driverName} has started the journey. Track live in the app.`,
+                            data: { trip_id: tripId, booking_id: booking.id }
+                        }).catch(e => console.error('[validate-trip-start] Notification err:', e));
 
-                // Real-time broadcast to passenger
-                try {
-                    const channel = supabaseAdmin.channel(`passenger_${passengerId}`)
-                    await channel.send({
-                        type: 'broadcast',
-                        event: 'ride_started',
-                        payload: {
-                            trip_id: tripId,
-                            booking_id: booking.id,
-                            driver_name: driverName,
-                            driver_phone: driverPhone,
-                            from: trip.from_location,
-                            to: trip.to_location,
-                        }
-                    })
-                    supabaseAdmin.removeChannel(channel)
-                } catch (broadcastErr) {
-                    console.error('[validate-trip-start] Broadcast error (non-critical):', broadcastErr)
-                }
-
-                // Send email to each passenger
-                try {
-                    const { data: passengerAuth } = await supabaseAdmin.auth.admin.getUserById(passengerId)
-                    const passengerEmail = passengerAuth?.user?.email || ''
-
-                    let passengerName = 'Passenger'
-                    const { data: passengerProfile } = await supabaseAdmin
-                        .from('profiles')
-                        .select('full_name')
-                        .eq('id', passengerId)
-                        .single()
-                    if (passengerProfile?.full_name) passengerName = passengerProfile.full_name
-
-                    if (passengerEmail) {
-                        await sendEmail({
-                            to: passengerEmail,
-                            subject: `🚗 Your Ride Has Started — ${trip.from_location} → ${trip.to_location}`,
-                            html: rideStartedEmail({
-                                passengerName,
-                                driverName,
-                                driverPhone,
+                        // 2. Real-time broadcast
+                        const channel = supabaseAdmin.channel(`passenger_${passengerId}`)
+                        await channel.send({
+                            type: 'broadcast',
+                            event: 'ride_started',
+                            payload: {
+                                trip_id: tripId,
+                                booking_id: booking.id,
+                                driver_name: driverName,
+                                driver_phone: driverPhone,
                                 from: trip.from_location,
                                 to: trip.to_location,
-                            }),
-                        })
+                            }
+                        }).catch(e => console.error('[validate-trip-start] Broadcast err:', e))
+                        supabaseAdmin.removeChannel(channel)
+
+                        // 3. Send email to passenger concurrently
+                        // Fetching profile and auth concurrently
+                        const [authRes, profileRes] = await Promise.all([
+                            supabaseAdmin.auth.admin.getUserById(passengerId).catch(() => ({ data: null })),
+                            supabaseAdmin.from('profiles').select('full_name').eq('id', passengerId).single().catch(() => ({ data: null }))
+                        ]);
+                        
+                        const passengerEmail = authRes.data?.user?.email;
+                        const passengerName = profileRes.data?.full_name || 'Passenger';
+
+                        if (passengerEmail) {
+                            await sendEmail({
+                                to: passengerEmail,
+                                subject: `🚗 Your Ride Has Started — ${trip.from_location} → ${trip.to_location}`,
+                                html: rideStartedEmail({
+                                    passengerName,
+                                    driverName,
+                                    driverPhone,
+                                    from: trip.from_location,
+                                    to: trip.to_location,
+                                }),
+                            }).catch(e => console.error('[validate-trip-start] Email err:', e))
+                        }
+                    } catch (err) {
+                        console.error(`[validate-trip-start] Core sync error for pax ${passengerId}:`, err);
                     }
-                } catch (emailErr) {
-                    console.error('[validate-trip-start] Email send error (non-critical):', emailErr)
-                }
-            }
+                });
+
+                await Promise.allSettled(notificationPromises);
+            };
+
+            // Await all background notifications to prevent V8 Isolate from prematurely terminating them under high load
+            await sendAllNotifications();
         }
 
         // 7. Prepare passenger details for UI

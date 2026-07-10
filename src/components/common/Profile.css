@@ -11,7 +11,7 @@
 .profile-header {
     background-color: #F4C430;
     padding: 2rem 1rem;
-    padding-top: 3rem;
+    padding-top: calc(var(--safe-area-top) + 2rem);
     text-align: center;
     position: relative;
 }
@@ -19,7 +19,7 @@
 .profile-back-btn {
     position: absolute;
     left: 1rem;
-    top: 3rem;
+    top: calc(var(--safe-area-top) + 2rem);
     background: none;
     border: none;
     cursor: pointer;

@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, MapPin, Calendar, Clock, User, Phone, ShieldAlert, Navigation2, CheckCircle, Smartphone, Info, AlertCircle, MessageSquare, Map as MapIcon } from 'lucide-react';
+import { ArrowLeft, MapPin, Calendar, Clock, User, Phone, ShieldAlert, Navigation2, CheckCircle, Smartphone, Info, AlertCircle, MessageSquare, Map as MapIcon, X, XCircle } from 'lucide-react';
 import { supabase } from '../../../supabaseClient';
 import toast from 'react-hot-toast';
 import { initializeMap, createRoute, addMarker, getCurrentLocation } from '../../../utils/googleMapsHelper';
-import { formatDate, formatTime, isTripToday } from '../../../utils/dateHelper';
+import { formatDate, formatTime, isTripToday, isTripPast } from '../../../utils/dateHelper';
 import { getOTPForTrip } from '../../../utils/otpHelper';
 import UnifiedRatingModal from '../../common/jsx/UnifiedRatingModal';
 import Chat from '../../common/Chat';
 import { liveTrackingService } from '../../../services/tracking/LiveTrackingService';
+import PaymentScreen from './PaymentScreen';
 import '../css/PassengerRideDetails.css';
 
 const PassengerRideDetails = ({ booking, onBack, onPaymentRequired }) => {
@@ -24,6 +25,10 @@ const PassengerRideDetails = ({ booking, onBack, onPaymentRequired }) => {
     const [showChat, setShowChat] = useState(false);
     const [currentUserId, setCurrentUserId] = useState(null);
     const [isPaid, setIsPaid] = useState(booking?.ride_payment?.payment_status === 'paid');
+    const [showPaymentModal, setShowPaymentModal] = useState(false);
+    const [paymentModalData, setPaymentModalData] = useState(null);
+
+    const isExpired = trip && isTripPast(trip.travel_date) && trip.status !== 'completed';
 
     const mapContainerRef = useRef(null);
     const mapInstanceRef = useRef(null);
@@ -58,7 +63,11 @@ const PassengerRideDetails = ({ booking, onBack, onPaymentRequired }) => {
                 if (updatedTrip.status === 'completed') {
                     liveTrackingService.stopTracking(); // Stop listening
                     toast.success('Your ride has been completed!');
-                    setShowRating(true);
+                    
+                    const ratedTrips = JSON.parse(localStorage.getItem('rated_trips') || '{}');
+                    if (!ratedTrips[trip.id]) {
+                        setShowRating(true);
+                    }
                 } else if (updatedTrip.status === 'in_progress' && trip?.status !== 'in_progress') {
                     toast.info('Driver has started the journey!');
                 }
@@ -66,7 +75,7 @@ const PassengerRideDetails = ({ booking, onBack, onPaymentRequired }) => {
             .subscribe();
 
         // Handle Live Tracking
-        if (trip?.status === 'in_progress' && trip?.id) {
+        if (!isExpired && trip?.status === 'in_progress' && trip?.id) {
             liveTrackingService.startTracking(trip.id, (location) => {
                 if (!mapInstanceRef.current) return;
 
@@ -110,7 +119,10 @@ const PassengerRideDetails = ({ booking, onBack, onPaymentRequired }) => {
                     if (payload.payload?.amount > 0 && payload.payload?.payment_id && onPaymentRequired) {
                         onPaymentRequired(payload.payload);
                     } else {
-                        setShowRating(true);
+                        const ratedTrips = JSON.parse(localStorage.getItem('rated_trips') || '{}');
+                        if (!ratedTrips[trip.id]) {
+                            setShowRating(true);
+                        }
                     }
                 }
             })
@@ -226,11 +238,20 @@ const PassengerRideDetails = ({ booking, onBack, onPaymentRequired }) => {
 
         try {
             // Get OTP from booking object directly
-            if (trip?.id && booking.status === 'approved' && booking.otp_code) {
-                setOtp(booking.otp_code);
+            const finalOtp = booking.otp || booking.otp_code || trip?.otp_code;
+            if (trip?.id && booking.status === 'approved' && finalOtp) {
+                setOtp(finalOtp);
             }
 
             initializeGoogleMaps();
+            
+            // Check if trip is already completed when opening details
+            if (trip?.status === 'completed') {
+                const ratedTrips = JSON.parse(localStorage.getItem('rated_trips') || '{}');
+                if (!ratedTrips[trip.id]) {
+                    setShowRating(true);
+                }
+            }
         } catch (error) {
             console.error('Error fetching additional details:', error);
         } finally {
@@ -343,26 +364,33 @@ const PassengerRideDetails = ({ booking, onBack, onPaymentRequired }) => {
             {/* Content Scrollable */}
             <div className="details-content">
                 {/* Status Card */}
-                <div className={`status-card ${trip.status}`}>
+                <div className={`status-card ${isExpired ? 'expired' : trip.status}`}>
                     <div className="status-badge">
-                        {trip.status === 'active' ? <Clock size={18} /> :
-                            trip.status === 'in_progress' ? <Navigation2 size={18} /> :
-                                <CheckCircle size={18} />}
-                        <span>{trip.status === 'in_progress' ? 'Journey Started' : trip.status.charAt(0).toUpperCase() + trip.status.slice(1)}</span>
+                        {isExpired ? <XCircle size={18} /> :
+                            trip.status === 'active' ? <Clock size={18} /> :
+                                trip.status === 'in_progress' ? <Navigation2 size={18} /> :
+                                    <CheckCircle size={18} />}
+                        <span>{isExpired ? 'Trip Expired' : trip.status === 'in_progress' ? 'Journey Started' : trip.status.charAt(0).toUpperCase() + trip.status.slice(1)}</span>
                     </div>
-                    {trip.status === 'active' && isTripToday(trip.travel_date) && (
-                        <p className="status-subtext">The trip is scheduled for today!</p>
-                    )}
-                    {trip.status === 'in_progress' && (
-                        <div className="status-subtext" style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px', color: '#10b981', background: 'rgba(16, 185, 129, 0.1)', padding: '6px 12px', borderRadius: '12px' }}>
-                            <div className="tracking-dot animate-pulse"></div>
-                            <span>Live Tracking Enabled</span>
-                        </div>
+                    {isExpired ? (
+                        <p className="status-subtext">This trip travel date has passed.</p>
+                    ) : (
+                        <>
+                            {trip.status === 'active' && isTripToday(trip.travel_date) && (
+                                <p className="status-subtext">The trip is scheduled for today!</p>
+                            )}
+                            {trip.status === 'in_progress' && (
+                                <div className="status-subtext" style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px', color: '#10b981', background: 'rgba(16, 185, 129, 0.1)', padding: '6px 12px', borderRadius: '12px' }}>
+                                    <div className="tracking-dot animate-pulse"></div>
+                                    <span>Live Tracking Enabled</span>
+                                </div>
+                            )}
+                        </>
                     )}
                 </div>
 
                 {/* OTP Section (If Today & Approved) */}
-                {otp && (
+                {!isExpired && otp && (
                     <div className="otp-card">
                         <div className="otp-info">
                             <Smartphone size={28} />
@@ -389,23 +417,27 @@ const PassengerRideDetails = ({ booking, onBack, onPaymentRequired }) => {
                             <div className="details">
                                 <h4>{driver.name}</h4>
                                 {driver.vehicle && <p>{driver.vehicle}</p>}
-                                {driver.phone && (
+                                {!isExpired && driver.phone && (
                                     <p className="driver-phone-text">
                                         <Phone size={14} />
                                         <a href={`tel:${driver.phone}`} className="phone-link">{driver.phone}</a>
                                     </p>
                                 )}
                             </div>
-                            <button className="call-btn" onClick={handleCall}>
-                                <Phone size={20} />
-                            </button>
+                            {!isExpired && (
+                                <button className="call-btn" onClick={handleCall}>
+                                    <Phone size={20} />
+                                </button>
+                            )}
                         </div>
-                        <div className="driver-actions">
-                            <button className="msg-btn" onClick={() => setShowChat(true)}>
-                                <MessageSquare size={18} />
-                                <span>Chat with Driver</span>
-                            </button>
-                        </div>
+                        {!isExpired && (
+                            <div className="driver-actions">
+                                <button className="msg-btn" onClick={() => setShowChat(true)}>
+                                    <MessageSquare size={18} />
+                                    <span>Chat with Driver</span>
+                                </button>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -420,7 +452,7 @@ const PassengerRideDetails = ({ booking, onBack, onPaymentRequired }) => {
                             <div className="dot from"></div>
                             <div className="text">
                                 <span className="label">From</span>
-                                <span className="val">{trip.from_location}</span>
+                                <span className="val">{booking.passenger_location || trip.from_location}</span>
                             </div>
                         </div>
                         <div className="line"></div>
@@ -428,7 +460,7 @@ const PassengerRideDetails = ({ booking, onBack, onPaymentRequired }) => {
                             <div className="dot to"></div>
                             <div className="text">
                                 <span className="label">To</span>
-                                <span className="val">{trip.to_location}</span>
+                                <span className="val">{booking.passenger_destination || trip.to_location}</span>
                             </div>
                         </div>
                     </div>
@@ -455,13 +487,13 @@ const PassengerRideDetails = ({ booking, onBack, onPaymentRequired }) => {
                         </div>
                         <div className="sched-item">
                             <span className="label">Total Price</span>
-                            <span className="val">₹{trip.price_per_seat * booking.seats_requested}</span>
+                            <span className="val">₹{(Number(booking.agreed_price) || trip.price_per_seat) * booking.seats_requested}</span>
                         </div>
                     </div>
                 </div>
 
                 {/* Active Trip Pay Now Section */}
-                {trip.status === 'in_progress' && (
+                {!isExpired && trip.status === 'in_progress' && (
                     <div className="active-trip-pay-section">
                         <div className="active-trip-banner">
                             <div className="pulse-dot"></div>
@@ -479,9 +511,18 @@ const PassengerRideDetails = ({ booking, onBack, onPaymentRequired }) => {
                                         onPaymentRequired({
                                             trip_id: trip.id,
                                             booking_id: booking.id, 
-                                            amount: trip.price_per_seat * booking.seats_requested,
+                                            amount: (Number(booking.agreed_price) || trip.price_per_seat) * booking.seats_requested,
                                             payment_id: booking?.payment_id || trip?.payment_id
                                         });
+                                    } else {
+                                        // Show inline payment modal (preferred)
+                                        setPaymentModalData({
+                                            trip_id: trip.id,
+                                            booking_id: booking.id,
+                                            amount: (Number(booking.agreed_price) || trip.price_per_seat) * booking.seats_requested,
+                                            payment_id: booking?.payment_id || trip?.payment_id
+                                        });
+                                        setShowPaymentModal(true);
                                     }
                                 }}
                             >
@@ -506,7 +547,7 @@ const PassengerRideDetails = ({ booking, onBack, onPaymentRequired }) => {
             {showRating && (
                 <UnifiedRatingModal
                     targetUser={{
-                        id: trip.user_id,
+                        id: booking?.driver_id || trip?.user_id,
                         name: driver?.name || 'Driver'
                     }}
                     tripId={trip.id}
@@ -516,6 +557,80 @@ const PassengerRideDetails = ({ booking, onBack, onPaymentRequired }) => {
                         onBack(); // Go back to history or bookings after rating
                     }}
                 />
+            )}
+
+            {/* Inline Payment Modal Overlay */}
+            {showPaymentModal && paymentModalData && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        zIndex: 1000,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'flex-end',
+                        backgroundColor: 'rgba(0,0,0,0.55)',
+                        backdropFilter: 'blur(4px)',
+                        animation: 'fadeIn 0.2s ease',
+                    }}
+                    onClick={(e) => { if (e.target === e.currentTarget) setShowPaymentModal(false); }}
+                >
+                    <div
+                        style={{
+                            background: '#fff',
+                            borderTopLeftRadius: '1.5rem',
+                            borderTopRightRadius: '1.5rem',
+                            maxHeight: '90vh',
+                            overflowY: 'auto',
+                            animation: 'slideUp 0.3s cubic-bezier(0.22,1,0.36,1)',
+                            boxShadow: '0 -8px 40px rgba(0,0,0,0.18)',
+                            position: 'relative',
+                        }}
+                    >
+                        {/* Drag handle bar */}
+                        <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 0' }}>
+                            <div style={{ width: '40px', height: '4px', borderRadius: '99px', background: '#e5e7eb' }} />
+                        </div>
+                        {/* Close button */}
+                        <button
+                            onClick={() => setShowPaymentModal(false)}
+                            style={{
+                                position: 'absolute', top: '16px', right: '16px',
+                                background: '#f3f4f6', border: 'none', borderRadius: '50%',
+                                width: '32px', height: '32px', display: 'flex', alignItems: 'center',
+                                justifyContent: 'center', cursor: 'pointer', zIndex: 10
+                            }}
+                        >
+                            <X size={18} color="#6b7280" />
+                        </button>
+                        <PaymentScreen
+                            paymentData={paymentModalData}
+                            onBack={() => setShowPaymentModal(false)}
+                            onPaymentComplete={() => {
+                                setShowPaymentModal(false);
+                                setIsPaid(true);
+                                toast.success('Payment successful! 🎉');
+                                
+                                if (trip?.status === 'completed') {
+                                    const ratedTrips = JSON.parse(localStorage.getItem('rated_trips') || '{}');
+                                    if (!ratedTrips[trip.id]) {
+                                        setTimeout(() => setShowRating(true), 500);
+                                    }
+                                }
+                            }}
+                        />
+                    </div>
+                    <style>{`
+                        @keyframes slideUp {
+                            from { transform: translateY(100%); opacity: 0; }
+                            to { transform: translateY(0); opacity: 1; }
+                        }
+                        @keyframes fadeIn {
+                            from { opacity: 0; }
+                            to { opacity: 1; }
+                        }
+                    `}</style>
+                </div>
             )}
         </div>
     );

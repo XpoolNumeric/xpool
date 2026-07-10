@@ -35,7 +35,7 @@ serve(async (req) => {
         }
 
         // 1. Fetch payment record safely
-        let paymentQuery = supabaseAdmin.from('ride_payments').select('id, payment_status, driver_id, passenger_id, trip_id, commission_amount').eq('driver_id', user.id)
+        let paymentQuery = supabaseAdmin.from('ride_payments').select('id, payment_status, driver_id, passenger_id, trip_id, commission_amount, booking_id').eq('driver_id', user.id)
         if (payment_id) {
             paymentQuery = paymentQuery.eq('id', payment_id)
         } else {
@@ -53,7 +53,7 @@ serve(async (req) => {
             const { data: booking, error: bookingErr } = await supabaseAdmin
                 .from('booking_requests')
                 .select(`
-                    id, passenger_id, seats_requested, trip_id, driver_id,
+                    id, passenger_id, seats_requested, trip_id, driver_id, agreed_price,
                     trips:trip_id(price_per_seat, user_id)
                 `)
                 .eq('id', booking_id)
@@ -67,7 +67,8 @@ serve(async (req) => {
             }
 
             const tripData = Array.isArray(booking.trips) ? booking.trips[0] : booking.trips;
-            const totalAmount = Number(tripData.price_per_seat || 0) * Number(booking.seats_requested || 1);
+            const basePrice = Number(booking.agreed_price) || Number(tripData?.price_per_seat || 0);
+            const totalAmount = basePrice * Number(booking.seats_requested || 1);
             const COMMISSION_RATE = 0.15;
             const commissionAmount = Math.round(totalAmount * COMMISSION_RATE * 100) / 100;
             const driverAmount = Math.round((totalAmount - commissionAmount) * 100) / 100;
@@ -91,6 +92,9 @@ serve(async (req) => {
             if (insertErr || !newPayment) throw new Error('Failed to create cash payment record: ' + insertErr?.message)
             
             paymentId = newPayment.id; // Just created and marked paid
+
+            // Update payment mode in booking_requests to reflect actual payment method
+            await supabaseAdmin.from('booking_requests').update({ payment_mode: 'cash' }).eq('id', booking_id);
 
             // --> DEDUCT COMMISSION <--
             try {
@@ -128,6 +132,12 @@ serve(async (req) => {
 
             if (updateError) throw updateError;
             paymentId = maybePayment.id;
+
+            // Update payment mode in booking_requests to reflect actual payment method
+            const actualBookingId = booking_id || maybePayment.booking_id;
+            if (actualBookingId) {
+                await supabaseAdmin.from('booking_requests').update({ payment_mode: 'cash' }).eq('id', actualBookingId);
+            }
 
             // --> DEDUCT COMMISSION <--
             const comAmount = Number(maybePayment.commission_amount || 0);

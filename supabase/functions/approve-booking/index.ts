@@ -128,7 +128,8 @@ serve(async (req) => {
             ? new Date(booking.trips.travel_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
             : 'N/A'
         const travelTime = booking.trips.travel_time ? booking.trips.travel_time.substring(0, 5) : 'N/A'
-        const totalPrice = (booking.trips.price_per_seat * booking.seats_requested).toString()
+        const pricePerSeat = booking.agreed_price ? Number(booking.agreed_price) : booking.trips.price_per_seat
+        const totalPrice = (pricePerSeat * booking.seats_requested).toString()
 
         const { error: notificationError } = await supabaseAdmin.from('notifications').insert({
             user_id: booking.passenger_id,

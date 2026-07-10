@@ -69,7 +69,7 @@
 /* ─── HEADER ─── */
 .driver-header {
     background: var(--amber);
-    padding: calc(env(safe-area-inset-top, 32px) + 38px) 20px 64px;
+    padding: calc(var(--safe-area-top) + 24px) 20px 64px;
     border-radius: 0 0 36px 36px;
     position: relative;
     z-index: 10;
@@ -646,7 +646,7 @@
 /* ─── QUICK ACTIONS ─── */
 .actions-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 10px;
     margin-bottom: 22px;
 }
@@ -738,7 +738,8 @@
     flex-direction: column;
     align-items: center;
     position: relative;
-    padding-top: 5px; /* Align first dot with center of trip-from text */
+    padding-top: 5px;
+    /* Align first dot with center of trip-from text */
     height: 100%;
 }
 
@@ -780,7 +781,8 @@
     font-size: 14px;
     font-weight: 800;
     color: var(--dark);
-    line-height: 20px; /* Precise height to match dot centering */
+    line-height: 20px;
+    /* Precise height to match dot centering */
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -791,7 +793,8 @@
     font-weight: 700;
     color: var(--gray-600);
     line-height: 18px;
-    margin-top: 10px; /* Space between addresses */
+    margin-top: 10px;
+    /* Space between addresses */
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -954,3 +957,534 @@
     font-weight: 600;
     margin: 0;
 }
+
+/* NOTIFICATION PANEL FROM PASSENGER HOME */
+.notif-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 105;
+}
+
+/* Panel Shell */
+.notif-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 100%;
+    max-width: 400px;
+    height: 100vh;
+    height: 100dvh;
+    background: #fafafa;
+    z-index: 115;
+    display: flex;
+    flex-direction: column;
+    box-shadow: -16px 0 48px rgba(0, 0, 0, 0.12), -2px 0 6px rgba(0, 0, 0, 0.04);
+    will-change: transform;
+}
+
+/* ─── Header ──────────────────────────────────────────────────────────── */
+.notif-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: calc(env(safe-area-inset-top, 28px) + 28px) 20px 18px;
+    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+    color: #1a0800;
+    position: relative;
+    overflow: hidden;
+}
+
+.notif-panel-header::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent);
+}
+
+.notif-header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.notif-panel-header h3 {
+    margin: 0;
+    font-size: 1.35rem;
+    font-weight: 900;
+    letter-spacing: -0.4px;
+}
+
+.notif-header-sub {
+    margin: 2px 0 0 0;
+    font-size: 0.75rem;
+    font-weight: 600;
+    opacity: 0.7;
+}
+
+.notif-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.mark-all-read-btn {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    border: none;
+    background: rgba(0, 0, 0, 0.08);
+    padding: 7px 14px;
+    border-radius: 20px;
+    font-weight: 700;
+    font-size: 0.75rem;
+    cursor: pointer;
+    color: #1a0800;
+    transition: all 0.2s;
+    font-family: inherit;
+    white-space: nowrap;
+}
+
+.mark-all-read-btn:active {
+    background: rgba(0, 0, 0, 0.14);
+    transform: scale(0.95);
+}
+
+.notif-close-btn {
+    background: rgba(0, 0, 0, 0.08);
+    border: none;
+    border-radius: 50%;
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: #1a0800;
+    transition: all 0.2s;
+}
+
+.notif-close-btn:active {
+    background: rgba(0, 0, 0, 0.15);
+    transform: scale(0.9);
+}
+
+/* ─── Body ────────────────────────────────────────────────────────────── */
+.notif-panel-body {
+    flex: 1;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    padding: 8px 0;
+}
+
+/* Loading */
+.notif-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 5rem 2rem;
+    gap: 16px;
+    color: #9ca3af;
+}
+
+.notif-spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid #e5e7eb;
+    border-top-color: #f59e0b;
+    border-radius: 50%;
+    animation: notif-spin 0.7s linear infinite;
+}
+
+@keyframes notif-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Empty State */
+.notif-empty {
+    padding: 6rem 3rem;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.notif-empty-icon-wrap {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #fef3c7, #fde68a);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #f59e0b;
+    margin-bottom: 20px;
+    box-shadow: 0 8px 24px rgba(245, 158, 11, 0.15);
+    animation: notif-empty-float 3s ease-in-out infinite;
+}
+
+@keyframes notif-empty-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+}
+
+.notif-empty h4 {
+    color: #111827;
+    margin: 0 0 8px 0;
+    font-weight: 800;
+    font-size: 1.15rem;
+    letter-spacing: -0.3px;
+}
+
+.notif-empty p {
+    font-size: 0.85rem;
+    color: #9ca3af;
+    line-height: 1.5;
+}
+
+/* ─── Notification Cards ──────────────────────────────────────────────── */
+.notif-card {
+    display: flex;
+    gap: 14px;
+    padding: 16px 20px;
+    margin: 0 8px 4px 8px;
+    border-radius: 16px;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    background: white;
+    border: 1px solid transparent;
+}
+
+.notif-card:hover {
+    background: #fefce8;
+    border-color: rgba(245, 158, 11, 0.08);
+}
+
+.notif-card:active {
+    transform: scale(0.985);
+}
+
+.notif-card.unread {
+    background: #fffef5;
+    border-color: rgba(245, 158, 11, 0.12);
+    box-shadow: 0 2px 12px rgba(245, 158, 11, 0.06);
+}
+
+/* ─── Icon Variants ───────────────────────────────────────────────────── */
+.notif-card-icon {
+    width: 46px;
+    height: 46px;
+    min-width: 46px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s;
+}
+
+.notif-card:hover .notif-card-icon {
+    transform: scale(1.05);
+}
+
+/* Type-specific icon palettes */
+.notif-icon-approved {
+    background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+    color: #059669;
+}
+
+.notif-icon-rejected {
+    background: linear-gradient(135deg, #fef2f2, #fecaca);
+    color: #dc2626;
+}
+
+.notif-icon-started {
+    background: linear-gradient(135deg, #eff6ff, #dbeafe);
+    color: #2563eb;
+}
+
+.notif-icon-completed {
+    background: linear-gradient(135deg, #f5f3ff, #ede9fe);
+    color: #7c3aed;
+}
+
+.notif-icon-payment {
+    background: linear-gradient(135deg, #fffbeb, #fef3c7);
+    color: #d97706;
+}
+
+.notif-icon-otp {
+    background: linear-gradient(135deg, #fffbeb, #fef3c7);
+    color: #b45309;
+}
+
+.notif-icon-default {
+    background: linear-gradient(135deg, #f3f4f6, #e5e7eb);
+    color: #6b7280;
+}
+
+/* ─── Card Body ───────────────────────────────────────────────────────── */
+.notif-card-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.notif-card-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 3px;
+}
+
+.notif-card-title {
+    font-weight: 800;
+    font-size: 0.92rem;
+    color: #111827;
+    letter-spacing: -0.2px;
+    line-height: 1.3;
+}
+
+.notif-live-dot {
+    width: 7px;
+    height: 7px;
+    min-width: 7px;
+    border-radius: 50%;
+    background: #f59e0b;
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15);
+    animation: notif-pulse 2s ease-in-out infinite;
+    flex-shrink: 0;
+}
+
+@keyframes notif-pulse {
+    0%, 100% { box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15); }
+    50% { box-shadow: 0 0 0 6px rgba(245, 158, 11, 0.08); }
+}
+
+.notif-card-msg {
+    font-size: 0.82rem;
+    color: #6b7280;
+    line-height: 1.45;
+    margin: 0 0 5px 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.notif-card-time {
+    font-size: 0.72rem;
+    color: #b0b5bf;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+}
+
+
+ 
+ /* --- REVIEWS --- */
+.reviews-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.review-card {
+    background: white;
+    border-radius: 20px;
+    padding: 16px;
+    border: 1px solid rgba(0, 0, 0, 0.04);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.02);
+}
+
+.review-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.reviewer-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.reviewer-avatar {
+    width: 28px;
+    height: 28px;
+    background: #fffbeb;
+    color: var(--amber-deeper);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.reviewer-name {
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--dark);
+}
+
+.review-stars {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: #fffbeb;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--amber-deeper);
+}
+
+.review-comment {
+    font-size: 13px;
+    color: var(--gray-600);
+    line-height: 1.4;
+    font-style: italic;
+    margin-bottom: 8px;
+}
+
+.review-date {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--gray-400);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* ─── CONVERSATIONS / MESSAGES ─── */
+.conversations-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 22px;
+}
+
+.no-conversations-message {
+    background: white;
+    border-radius: 20px;
+    padding: 24px;
+    text-align: center;
+    border: 1px solid rgba(0, 0, 0, 0.04);
+    color: var(--gray-400);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.conversation-card {
+    background: white;
+    border-radius: 20px;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    border: 1px solid rgba(0, 0, 0, 0.04);
+    cursor: pointer;
+    transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.2s;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.01);
+}
+
+.conversation-card:active {
+    transform: scale(0.97);
+    background: #fffbeb;
+}
+
+.conversation-avatar {
+    width: 48px;
+    height: 48px;
+    background: #fffbeb;
+    color: var(--amber-deeper);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    position: relative;
+    border: 1.5px solid rgba(245, 158, 11, 0.15);
+}
+
+.unread-badge-bubble {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    background: var(--red);
+    color: white;
+    font-size: 10px;
+    font-weight: 900;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    border-radius: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid white;
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+}
+
+.conversation-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.conversation-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+}
+
+.passenger-name {
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--dark);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.message-time {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--gray-400);
+}
+
+.trip-route-sub {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--amber-dark);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.last-message-text {
+    font-size: 13px;
+    color: var(--gray-600);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.last-message-text.unread {
+    font-weight: 800;
+    color: var(--dark);
+}
+
+.arrow-icon {
+    color: var(--gray-200);
+    flex-shrink: 0;
+}
+

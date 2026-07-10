@@ -9,6 +9,8 @@ import { getAllNotifications, getUnreadCount, markAllNotificationsAsRead, markNo
 import '../css/PassengerHome.css';
 import LocationInput from '../../common/LocationInput';
 import logoReal from '../../../assets/logo_real.jpg';
+import Chat from '../../common/Chat';
+
 
 // Component to handle map centering and routing updates
 const MapUpdater = ({ center, destination, onRouteInfo, isSearchOverlayActive }) => {
@@ -267,6 +269,10 @@ const PassengerHome = ({ onBack, onSearchTrips, onNavigate, onLogout, session, i
         pendingBookings: 0
     });
     const [loading, setLoading] = useState(false);
+    const [conversations, setConversations] = useState([]);
+    const [activeChat, setActiveChat] = useState(null); // { tripId, bookingId }
+    const [isMessagePanelOpen, setIsMessagePanelOpen] = useState(false);
+    const [mapCenter, setMapCenter] = useState(null);
 
     const getTodayDate = () => {
         const d = new Date();
@@ -278,6 +284,132 @@ const PassengerHome = ({ onBack, onSearchTrips, onNavigate, onLogout, session, i
 
     const [travelDate, setTravelDate] = useState(getTodayDate());
     const [vehiclePreference, setVehiclePreference] = useState('any');
+
+    const formatMessageTime = (dateStr) => {
+        if (!dateStr) return '';
+        const date = new Date(dateStr);
+        const today = new Date();
+        if (date.toDateString() === today.toDateString()) {
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+        return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    };
+
+    const fetchConversations = async (userId) => {
+        try {
+            // 1. Fetch bookings that are approved, for the passenger
+            const { data: bookings, error: bookingsError } = await supabase
+                .from('booking_requests')
+                .select(`
+                    id,
+                    trip_id,
+                    driver_id,
+                    status,
+                    seats_requested,
+                    trips!inner (
+                        id,
+                        from_location,
+                        to_location,
+                        travel_date,
+                        travel_time,
+                        status
+                    )
+                `)
+                .eq('passenger_id', userId)
+                .eq('status', 'approved');
+
+            if (bookingsError) throw bookingsError;
+
+            // 2. Filter bookings where trip is active or in_progress
+            const activeBookings = (bookings || []).filter(b => 
+                b.trips && ['active', 'in_progress'].includes(b.trips.status)
+            );
+
+            if (activeBookings.length === 0) {
+                setConversations([]);
+                return;
+            }
+
+            // 3. Fetch driver profiles
+            const driverIds = [...new Set(activeBookings.map(b => b.driver_id).filter(Boolean))];
+            let profilesMap = {};
+            if (driverIds.length > 0) {
+                const { data: profiles } = await supabase
+                    .from('profiles')
+                    .select('id, full_name')
+                    .in('id', driverIds);
+                if (profiles) {
+                    profiles.forEach(p => {
+                        profilesMap[p.id] = p.full_name;
+                    });
+                }
+            }
+
+            // 4. Fetch last message for each booking to display/calculate unread count
+            const bookingIds = activeBookings.map(b => b.id);
+            const { data: messages, error: messagesError } = await supabase
+                .from('messages')
+                .select('id, booking_id, sender_id, content, created_at')
+                .in('booking_id', bookingIds)
+                .order('created_at', { ascending: false });
+
+            // 5. Map conversations with driver name, last message, and unread count
+            const mappedConvs = activeBookings.map(b => {
+                const bookingMessages = (messages || []).filter(m => m.booking_id === b.id);
+                const lastMsg = bookingMessages[0] || null;
+                const lastReadTimeStr = localStorage.getItem(`xpool_chat_read_${b.id}`) || '1970-01-01T00:00:00.000Z';
+                const lastReadTime = new Date(lastReadTimeStr);
+
+                // Unread messages: sender is not passenger (userId) and message was created after lastReadTime
+                const unreadCount = bookingMessages.filter(m => 
+                    m.sender_id !== userId && new Date(m.created_at) > lastReadTime
+                ).length;
+
+                return {
+                    booking_id: b.id,
+                    trip_id: b.trip_id,
+                    driver_id: b.driver_id,
+                    driver_name: profilesMap[b.driver_id] || 'Driver',
+                    from_location: b.trips.from_location,
+                    to_location: b.trips.to_location,
+                    travel_date: b.trips.travel_date,
+                    travel_time: b.trips.travel_time,
+                    last_message: lastMsg ? lastMsg.content : 'No messages yet',
+                    last_message_time: lastMsg ? lastMsg.created_at : null,
+                    unread_count: unreadCount
+                };
+            });
+
+            // Sort conversations so the one with the latest message is at the top
+            mappedConvs.sort((a, b) => {
+                if (!a.last_message_time) return 1;
+                if (!b.last_message_time) return -1;
+                return new Date(b.last_message_time) - new Date(a.last_message_time);
+            });
+
+            setConversations(mappedConvs);
+        } catch (err) {
+            console.error('Error fetching conversations:', err);
+        }
+    };
+
+    const handleOpenChat = (conv) => {
+        // Mark as read in localStorage
+        localStorage.setItem(`xpool_chat_read_${conv.booking_id}`, new Date().toISOString());
+        // Update local state immediately
+        setConversations(prev => prev.map(c => 
+            c.booking_id === conv.booking_id ? { ...c, unread_count: 0 } : c
+        ));
+        setActiveChat({ tripId: conv.trip_id, bookingId: conv.booking_id });
+    };
+
+    const handleCloseChat = () => {
+        setActiveChat(null);
+        const userId = session?.user?.id;
+        if (userId) {
+            fetchConversations(userId);
+        }
+    };
 
     // Memoized function to fetch passenger data
     const fetchPassengerData = useCallback(async () => {
@@ -331,10 +463,11 @@ const PassengerHome = ({ onBack, onSearchTrips, onNavigate, onLogout, session, i
                     trip_id,
                     status,
                     seats_requested,
+                    driver_id,
                     trips!inner(*)
                 `)
                 .eq('passenger_id', user.id)
-                .in('status', ['confirmed', 'pending'])
+                .in('status', ['approved', 'pending'])
                 .order('created_at', { ascending: false })
                 .limit(5);
 
@@ -367,7 +500,7 @@ const PassengerHome = ({ onBack, onSearchTrips, onNavigate, onLogout, session, i
                 setUpcomingTrips(upcoming);
 
                 // Calculate stats
-                const confirmedTrips = bookings.filter(b => b.status === 'confirmed');
+                const confirmedTrips = bookings.filter(b => b.status === 'approved');
                 const pendingBookings = bookings.filter(b => b.status === 'pending');
 
                 // Fetch completed trips count
@@ -382,6 +515,9 @@ const PassengerHome = ({ onBack, onSearchTrips, onNavigate, onLogout, session, i
                     pendingBookings: pendingBookings.length,
                     completedTrips: completedBookings?.length || 0
                 });
+
+                // Fetch conversations
+                await fetchConversations(user.id);
             }
 
             // Fetch recent searches from localStorage
@@ -625,6 +761,23 @@ const PassengerHome = ({ onBack, onSearchTrips, onNavigate, onLogout, session, i
         return () => supabase.removeChannel(channel);
     }, [currentUserId, fetchNotifications]);
 
+    // Real-time subscription for messages to update conversation unread badges
+    useEffect(() => {
+        if (!currentUserId) return;
+        const channel = supabase
+            .channel(`passenger_messages_${currentUserId}`)
+            .on('postgres_changes', {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'messages',
+            }, (payload) => {
+                console.log('[PassengerHome] Message update received:', payload);
+                fetchConversations(currentUserId);
+            })
+            .subscribe();
+        return () => supabase.removeChannel(channel);
+    }, [currentUserId]);
+
     const handleMarkAllRead = async () => {
         if (!currentUserId) return;
         await markAllNotificationsAsRead(currentUserId);
@@ -671,12 +824,16 @@ const PassengerHome = ({ onBack, onSearchTrips, onNavigate, onLogout, session, i
         const fetchLocation = async () => {
             try {
                 const coords = await getCurrentLocation();
-                setCurrentLocation({ lat: coords.lat, lng: coords.lng });
+                const latLng = { lat: coords.lat, lng: coords.lng };
+                setCurrentLocation(latLng);
+                setMapCenter(latLng);
                 setPickup("Current Location");
             } catch (error) {
                 console.error("Location access error:", error);
                 toast.error("Please enable location access for precise pickup");
-                setCurrentLocation({ lat: 19.0760, lng: 72.8777 }); // Default: Mumbai
+                const defaultLoc = { lat: 19.0760, lng: 72.8777 };
+                setCurrentLocation(defaultLoc);
+                setMapCenter(defaultLoc);
             }
         };
 
@@ -748,6 +905,7 @@ const PassengerHome = ({ onBack, onSearchTrips, onNavigate, onLogout, session, i
         getCoordinates(prediction.place_id, (coords) => {
             if (type === 'pickup') {
                 setPickupCoords(coords);
+                setMapCenter(coords);
             } else {
                 setDestinationCoords(coords);
             }
@@ -771,6 +929,10 @@ const PassengerHome = ({ onBack, onSearchTrips, onNavigate, onLogout, session, i
         const tempPickupCoords = pickupCoords;
         setPickupCoords(destinationCoords);
         setDestinationCoords(tempPickupCoords);
+
+        if (destinationCoords) {
+            setMapCenter(destinationCoords);
+        }
 
         setRouteInfo(null);
     };
@@ -844,7 +1006,7 @@ const PassengerHome = ({ onBack, onSearchTrips, onNavigate, onLogout, session, i
                                 zIndex={100}
                             />
                             <MapUpdater
-                                center={pickupCoords || currentLocation}
+                                center={mapCenter || pickupCoords || currentLocation}
                                 destination={destinationCoords}
                                 onRouteInfo={setRouteInfo}
                                 isSearchOverlayActive={isSearchOverlayActive}
@@ -902,10 +1064,20 @@ const PassengerHome = ({ onBack, onSearchTrips, onNavigate, onLogout, session, i
                                 <span style={{ color: '#1a0800' }}>pool</span>
                             </h2>
                         </div>
-                        <button className="glass-notification-btn" onClick={toggleNotifPanel}>
-                            <Bell size={22} />
-                            {unreadCount > 0 && <span className="notification-dot">{unreadCount > 9 ? '9+' : unreadCount}</span>}
-                        </button>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                            <button className="glass-notification-btn" onClick={() => setIsMessagePanelOpen(true)} aria-label="Messages">
+                                <MessageCircle size={22} />
+                                {conversations.reduce((acc, c) => acc + c.unread_count, 0) > 0 && (
+                                    <span className="notification-dot" style={{ background: '#ef4444' }}>
+                                        {conversations.reduce((acc, c) => acc + c.unread_count, 0)}
+                                    </span>
+                                )}
+                            </button>
+                            <button className="glass-notification-btn" onClick={toggleNotifPanel}>
+                                <Bell size={22} />
+                                {unreadCount > 0 && <span className="notification-dot">{unreadCount > 9 ? '9+' : unreadCount}</span>}
+                            </button>
+                        </div>
                     </div>
                 </motion.div>
 
@@ -1003,6 +1175,7 @@ const PassengerHome = ({ onBack, onSearchTrips, onNavigate, onLogout, session, i
                     </motion.div>
                 </motion.div>
 
+
                 {/* Bottom Area Wrapper */}
                 <div className="bottom-area-wrapper" style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', pointerEvents: 'none', width: '100%', zIndex: 35 }}>
                     <div style={{ display: 'flex', justifyContent: 'flex-end', paddingRight: '20px', paddingBottom: '16px' }}>
@@ -1015,9 +1188,9 @@ const PassengerHome = ({ onBack, onSearchTrips, onNavigate, onLogout, session, i
                                 setIsLocating(true);
                                 try {
                                     const coords = await getCurrentLocation();
-                                    setCurrentLocation({ lat: coords.lat, lng: coords.lng });
-                                    setPickupCoords(null);
-                                    setPickup('Current Location');
+                                    const latLng = { lat: coords.lat, lng: coords.lng };
+                                    setCurrentLocation(latLng);
+                                    setMapCenter(latLng);
                                     toast.success('Centered to your location');
                                 } catch (err) {
                                     toast.error('Could not get your location');
@@ -1042,75 +1215,75 @@ const PassengerHome = ({ onBack, onSearchTrips, onNavigate, onLogout, session, i
 
                     {/* Bottom Buttons Container */}
                     <div className="continue-btn-container" style={{ marginTop: 0 }}>
-                    {/* Recent Searches Quick Buttons */}
-                    {recentSearches.length > 0 && (
-                        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="recent-searches-carousel">
-                            <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
-                                {recentSearches.map((search, index) => {
-                                    // Make sure we extract city names safely
-                                    const fromName = search.from ? search.from.split(',')[0].trim() : "Current Location";
-                                    const toName = search.to ? search.to.split(',')[0].trim() : "";
+                        {/* Recent Searches Quick Buttons */}
+                        {recentSearches.length > 0 && (
+                            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="recent-searches-carousel">
+                                <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
+                                    {recentSearches.map((search, index) => {
+                                        // Make sure we extract city names safely
+                                        const fromName = search.from ? search.from.split(',')[0].trim() : "Current Location";
+                                        const toName = search.to ? search.to.split(',')[0].trim() : "";
 
-                                    return (
-                                        <button
-                                            key={index}
-                                            className="recent-search-chip"
-                                            onClick={() => handleQuickSearch(search.from, search.to)}
-                                            style={{ display: 'flex', alignItems: 'center' }}
-                                        >
-                                            <HistoryIcon size={14} className="text-gray-400" />
-                                            <span className="truncate" style={{ maxWidth: '140px' }}>
-                                                {fromName} <span style={{ opacity: 0.5, margin: '0 2px' }}>→</span> {toName}
-                                            </span>
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </motion.div>
-                    )}
+                                        return (
+                                            <button
+                                                key={index}
+                                                className="recent-search-chip"
+                                                onClick={() => handleQuickSearch(search.from, search.to)}
+                                                style={{ display: 'flex', alignItems: 'center' }}
+                                            >
+                                                <HistoryIcon size={14} className="text-gray-400" />
+                                                <span className="truncate" style={{ maxWidth: '140px' }}>
+                                                    {fromName} <span style={{ opacity: 0.5, margin: '0 2px' }}>→</span> {toName}
+                                                </span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </motion.div>
+                        )}
 
-                    <motion.button
-                        initial={{ scale: 0.95, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        whileTap={{ scale: 0.98 }}
-                        className="bs-book-btn w-full flex items-center justify-center gap-2"
-                        onClick={() => {
-                            if (!dropoff) {
-                                toast.error('Please enter a destination');
-                                return;
-                            }
-                            const searchEntry = {
-                                from: pickup || "Current Location",
-                                to: dropoff,
-                                timestamp: new Date().toISOString(),
-                                results: 0
-                            };
+                        <motion.button
+                            initial={{ scale: 0.95, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            whileTap={{ scale: 0.98 }}
+                            className="bs-book-btn w-full flex items-center justify-center gap-2"
+                            onClick={() => {
+                                if (!dropoff) {
+                                    toast.error('Please enter a destination');
+                                    return;
+                                }
+                                const searchEntry = {
+                                    from: pickup || "Current Location",
+                                    to: dropoff,
+                                    timestamp: new Date().toISOString(),
+                                    results: 0
+                                };
 
-                            // Get existing searches and prepend new one, ensuring uniqueness
-                            const currentSearches = JSON.parse(localStorage.getItem('recentSearches') || '[]');
-                            const updatedSearches = [
-                                searchEntry,
-                                ...currentSearches.filter(s => !(s.from === searchEntry.from && s.to === searchEntry.to))
-                            ].slice(0, 10);
+                                // Get existing searches and prepend new one, ensuring uniqueness
+                                const currentSearches = JSON.parse(localStorage.getItem('recentSearches') || '[]');
+                                const updatedSearches = [
+                                    searchEntry,
+                                    ...currentSearches.filter(s => !(s.from === searchEntry.from && s.to === searchEntry.to))
+                                ].slice(0, 10);
 
-                            localStorage.setItem('recentSearches', JSON.stringify(updatedSearches));
-                            // Update local state without forcing a full reload immediately 
-                            setRecentSearches(updatedSearches);
+                                localStorage.setItem('recentSearches', JSON.stringify(updatedSearches));
+                                // Update local state without forcing a full reload immediately 
+                                setRecentSearches(updatedSearches);
 
-                            onSearchTrips({
-                                from: pickup,
-                                from_coords: pickupCoords || currentLocation,
-                                to: dropoff,
-                                to_coords: destinationCoords,
-                                date: travelDate,
-                                vehicle: vehiclePreference
-                            });
-                        }}
-                    >
-                        <Search size={22} className="stroke-black stroke-2" />
-                        Search Rides
-                    </motion.button>
-                </div>
+                                onSearchTrips({
+                                    from: pickup,
+                                    from_coords: pickupCoords || currentLocation,
+                                    to: dropoff,
+                                    to_coords: destinationCoords,
+                                    date: travelDate,
+                                    vehicle: vehiclePreference
+                                });
+                            }}
+                        >
+                            <Search size={22} className="stroke-black stroke-2" />
+                            Search Rides
+                        </motion.button>
+                    </div>
                 </div>
             </div>
 
@@ -1124,6 +1297,16 @@ const PassengerHome = ({ onBack, onSearchTrips, onNavigate, onLogout, session, i
                     <button className="sm-close-btn" onClick={toggleMenu} aria-label="Close menu">
                         <X size={20} strokeWidth={2.5} />
                     </button>
+                </div>
+
+                <div className="sm-user-profile" style={{ padding: '0 24px 20px 24px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#fffbeb', border: '1px solid #fcd34d', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <User size={24} color="#f59e0b" />
+                    </div>
+                    <div>
+                        <p style={{ margin: 0, fontWeight: '700', fontSize: '1.1rem', color: '#111827', textTransform: 'capitalize' }}>{passengerName}</p>
+                        <p style={{ margin: 0, fontSize: '0.85rem', color: '#6b7280' }}>Passenger Profile</p>
+                    </div>
                 </div>
 
                 <div className="sm-body">
@@ -1296,6 +1479,146 @@ const PassengerHome = ({ onBack, onSearchTrips, onNavigate, onLogout, session, i
                 )}
             </AnimatePresence>
 
+            {/* ═══ MESSAGES PANEL ═══ */}
+            <AnimatePresence>
+                {isMessagePanelOpen && (
+                    <motion.div
+                        className="notif-backdrop"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.25 }}
+                        onClick={() => setIsMessagePanelOpen(false)}
+                    />
+                )}
+            </AnimatePresence>
+            <AnimatePresence>
+                {isMessagePanelOpen && (
+                    <motion.div
+                        className="notif-panel open"
+                        initial={{ x: '100%' }}
+                        animate={{ x: 0 }}
+                        exit={{ x: '100%' }}
+                        transition={{ type: 'spring', damping: 30, stiffness: 320 }}
+                    >
+                        {/* Header */}
+                        <div className="notif-panel-header" style={{ background: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)' }}>
+                            <div className="notif-header-left">
+                                <MessageCircle size={22} strokeWidth={2.5} style={{ color: '#1a0800' }} />
+                                <div>
+                                    <h3 style={{ color: '#1a0800', margin: 0, fontSize: '1.35rem', fontWeight: 900 }}>Messages</h3>
+                                    {conversations.reduce((acc, c) => acc + c.unread_count, 0) > 0 && (
+                                        <p className="notif-header-sub" style={{ color: 'rgba(26, 8, 0, 0.7)', margin: '2px 0 0 0', fontSize: '0.75rem', fontWeight: 600 }}>
+                                            {conversations.reduce((acc, c) => acc + c.unread_count, 0)} unread
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                            <div className="notif-header-actions">
+                                <button className="notif-close-btn" onClick={() => setIsMessagePanelOpen(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#1a0800', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <X size={18} strokeWidth={2.5} />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Body */}
+                        <div className="notif-panel-body" style={{ padding: '16px', overflowY: 'auto', flex: 1 }}>
+                            {conversations.length === 0 ? (
+                                <div className="notif-empty" style={{ padding: '40px 20px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                                    <div className="notif-empty-icon-wrap" style={{ margin: '0 auto 16px', width: '64px', height: '64px', borderRadius: '50%', background: '#fffbeb', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
+                                        <MessageCircle size={32} />
+                                    </div>
+                                    <h4 style={{ margin: '0 0 8px 0', fontSize: '1.1rem', fontWeight: '700', color: '#111827' }}>No active chats</h4>
+                                    <p style={{ margin: 0, fontSize: '0.875rem', color: '#6b7280', lineHeight: 1.4 }}>Once your booking request is approved, you can chat with your driver here.</p>
+                                </div>
+                            ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                    {conversations.map(conv => (
+                                        <div
+                                            key={conv.booking_id}
+                                            className="active-chat-item"
+                                            onClick={() => {
+                                                setIsMessagePanelOpen(false);
+                                                handleOpenChat(conv);
+                                            }}
+                                            style={{
+                                                background: 'white',
+                                                borderRadius: '16px',
+                                                padding: '16px',
+                                                border: '1px solid rgba(229, 231, 235, 0.8)',
+                                                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.03)',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '12px',
+                                                cursor: 'pointer',
+                                                transition: 'all 0.2s ease',
+                                                position: 'relative'
+                                            }}
+                                        >
+                                            <div style={{
+                                                width: '44px',
+                                                height: '44px',
+                                                borderRadius: '50%',
+                                                background: '#fffbeb',
+                                                color: '#f59e0b',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                position: 'relative',
+                                                border: '1px solid rgba(245, 158, 11, 0.2)',
+                                                flexShrink: 0
+                                            }}>
+                                                <MessageCircle size={22} />
+                                                {conv.unread_count > 0 && (
+                                                    <div style={{
+                                                        position: 'absolute',
+                                                        top: '-2px',
+                                                        right: '-2px',
+                                                        background: '#ef4444',
+                                                        color: 'white',
+                                                        fontSize: '9px',
+                                                        fontWeight: '900',
+                                                        minWidth: '16px',
+                                                        height: '16px',
+                                                        borderRadius: '8px',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        border: '1.5px solid white',
+                                                        boxShadow: '0 2px 8px rgba(239, 68, 68, 0.3)'
+                                                    }}>{conv.unread_count}</div>
+                                                )}
+                                            </div>
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                                                    <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '800', color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Chat with {conv.driver_name}</h4>
+                                                    {conv.last_message_time && (
+                                                        <span style={{ fontSize: '0.75rem', color: '#9ca3af', flexShrink: 0, marginLeft: '4px' }}>{formatMessageTime(conv.last_message_time)}</span>
+                                                    )}
+                                                </div>
+                                                <p style={{ margin: '2px 0 0 0', fontSize: '0.75rem', color: '#f59e0b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                                    {conv.from_location.split(',')[0]} → {conv.to_location.split(',')[0]}
+                                                </p>
+                                                <p style={{
+                                                    margin: '6px 0 0 0',
+                                                    fontSize: '0.85rem',
+                                                    color: '#4b5563',
+                                                    whiteSpace: 'nowrap',
+                                                    overflow: 'hidden',
+                                                    textOverflow: 'ellipsis',
+                                                    fontWeight: conv.unread_count > 0 ? '700' : '400'
+                                                }}>{conv.last_message}</p>
+                                            </div>
+                                            <ChevronRight size={18} style={{ color: '#9ca3af', flexShrink: 0 }} />
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             {/* ═══ NOTIFICATION PANEL ═══ */}
             <AnimatePresence>
                 {isNotifOpen && (
@@ -1363,12 +1686,12 @@ const PassengerHome = ({ onBack, onSearchTrips, onNavigate, onLogout, session, i
                                     {notifList.map(notif => {
                                         const iconType =
                                             notif.type === 'booking_approved' ? 'approved' :
-                                            notif.type === 'booking_rejected' ? 'rejected' :
-                                            notif.type === 'ride_started' ? 'started' :
-                                            notif.type === 'ride_completed' ? 'completed' :
-                                            notif.type === 'payment' ? 'payment' :
-                                            (notif.type === 'otp' || (notif.title && notif.title.toLowerCase().includes('otp'))) ? 'otp' :
-                                            'default';
+                                                notif.type === 'booking_rejected' ? 'rejected' :
+                                                    notif.type === 'ride_started' ? 'started' :
+                                                        notif.type === 'ride_completed' ? 'completed' :
+                                                            notif.type === 'payment' ? 'payment' :
+                                                                (notif.type === 'otp' || (notif.title && notif.title.toLowerCase().includes('otp'))) ? 'otp' :
+                                                                    'default';
                                         const iconMap = {
                                             approved: <CheckCircle2 size={22} strokeWidth={2.5} />,
                                             rejected: <XCircle size={22} strokeWidth={2.5} />,
@@ -1402,6 +1725,37 @@ const PassengerHome = ({ onBack, onSearchTrips, onNavigate, onLogout, session, i
                                 </motion.div>
                             )}
                         </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Chat Overlay */}
+            <AnimatePresence>
+                {activeChat && (
+                    <motion.div
+                        className="chat-overlay-container"
+                        initial={{ opacity: 0, y: '100%' }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: '100%' }}
+                        transition={{ type: 'spring', damping: 25, stiffness: 250 }}
+                        style={{
+                            position: 'fixed',
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            zIndex: 1000,
+                            background: 'white',
+                            display: 'flex',
+                            flexDirection: 'column'
+                        }}
+                    >
+                        <Chat
+                            tripId={activeChat.tripId}
+                            bookingId={activeChat.bookingId}
+                            currentUserId={session?.user?.id}
+                            onBack={handleCloseChat}
+                        />
                     </motion.div>
                 )}
             </AnimatePresence>

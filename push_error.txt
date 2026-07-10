@@ -1,0 +1,27 @@
+git: 'credential-manager-core' is not a git command. See 'git --help'.
+remote: error: GH013: Repository rule violations found for refs/heads/main.        
+remote: 
+remote: - GITHUB PUSH PROTECTION        
+remote:   —————————————————————————————————————————        
+remote:     Resolve the following violations before pushing again        
+remote: 
+remote:     - Push cannot contain secrets        
+remote: 
+remote:             
+remote:      (?) Learn how to resolve a blocked push        
+remote:      https://docs.github.com/code-security/secret-scanning/working-with-secret-scanning-and-push-protection/working-with-push-protection-from-the-command-line#resolving-a-blocked-push        
+remote:             
+remote:             
+remote:       —— Cashfree API Key ——————————————————————————————————        
+remote:        locations:        
+remote:          - commit: 7f55a1e8d535c2380bee5b280cd829319c3df7bb        
+remote:            path: supabase/functions/create-cashfree-order/index.ts:121        
+remote:             
+remote:        (?) To push, remove secret from commit(s) or follow this URL to allow the secret.        
+remote:        https://github.com/XpoolNumeric/xpool/security/secret-scanning/unblock-secret/3BWNcAiqhk6ge4CgCQXnW9u4B5s        
+remote:             
+remote: 
+remote: 
+To https://github.com/XpoolNumeric/xpool.git
+ ! [remote rejected]   main -> main (push declined due to repository rule violations)
+error: failed to push some refs to 'https://github.com/XpoolNumeric/xpool.git'

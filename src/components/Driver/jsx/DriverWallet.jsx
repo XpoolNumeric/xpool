@@ -88,7 +88,7 @@ const DriverWallet = ({ onBack }) => {
             // Get Driver's Completed Trips & Valid Bookings to calculate Earnings
             const { data: tripsList } = await supabase
                 .from('trips')
-                .select('*, booking_requests(*)')
+                .select('*, booking_requests(*, ride_payments(*))')
                 .eq('driver_id', driver.id)
                 .in('status', ['completed'])
                 .order('created_at', { ascending: false });
@@ -117,7 +117,17 @@ const DriverWallet = ({ onBack }) => {
 
                         validBookings.forEach(b => {
                             const fare = Number(b.seats_requested || 1) * Number(t.price_per_seat || 0);
-                            if (b.payment_mode === 'online') {
+                            
+                            // Real source of truth: if it has a cashfree_payment_id, it was actually paid online.
+                            // Otherwise, if payment_status is 'paid' (or we assume cash), it's cash.
+                            const ridePayment = Array.isArray(b.ride_payments) ? b.ride_payments[0] : b.ride_payments;
+                            
+                            let isOnline = b.payment_mode === 'online';
+                            if (ridePayment) {
+                                isOnline = !!ridePayment.cashfree_payment_id;
+                            }
+
+                            if (isOnline) {
                                 onlineFare += fare;
                             } else {
                                 codFare += fare;
@@ -342,7 +352,7 @@ const DriverWallet = ({ onBack }) => {
 
             // Init Cashfree
             const cashfree = window.Cashfree({
-                mode: 'production' // Switch to sandbox if needed
+                mode: data.environment === 'PRODUCTION' ? 'production' : 'sandbox'
             });
 
             const checkoutOptions = {

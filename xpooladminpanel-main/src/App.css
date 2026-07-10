@@ -1,0 +1,31 @@
+/* ── App-Level Layout Styles ─────────────────────────────────── */
+
+/* Remove default body margin/padding */
+html, body, #root {
+    margin: 0;
+    padding: 0;
+}
+
+#root {
+    min-height: 100vh;
+    width: 100%;
+}
+
+/* Layout: Sidebar + Content */
+.dashboard-container {
+    display: flex;
+    min-height: 100vh;
+    position: relative;
+}
+
+.dashboard-content-wrapper {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Smooth page transitions */
+.dashboard-content-wrapper {
+    transition: margin-left 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}

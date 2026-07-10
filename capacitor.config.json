@@ -1,5 +1,12 @@
 {
     "appId": "com.xpool.app",
     "appName": "XPool",
-    "webDir": "dist"
+    "webDir": "dist",
+    "plugins": {
+        "StatusBar": {
+            "style": "DARK",
+            "backgroundColor": "#00000000",
+            "overlaysWebView": true
+        }
+    }
 }

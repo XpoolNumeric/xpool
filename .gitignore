@@ -4,8 +4,8 @@ dist/
 .env.local
 .DS_Store
 *.log
-android/app/build/
-android/build/
-android/.gradle/
-android/local.properties
+# android/app/build/
+# android/build/
+# android/.gradle/
+# android/local.properties
 .cursor/

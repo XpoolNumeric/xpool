@@ -3,6 +3,16 @@ apply plugin: 'com.android.application'
 android {
     namespace "com.xpool.app"
     compileSdk rootProject.ext.compileSdkVersion
+
+    signingConfigs {
+        release {
+            storeFile file("release-key.jks")
+            storePassword "xpool123"
+            keyAlias "my-key-alias"
+            keyPassword "xpool123"
+        }
+    }
+
     defaultConfig {
         applicationId "com.xpool.app"
         minSdkVersion rootProject.ext.minSdkVersion
@@ -18,13 +28,9 @@ android {
     }
     buildTypes {
         release {
+            signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-        }
-    }
-    configurations.all {
-        resolutionStrategy {
-            force 'androidx.browser:browser:1.8.0'
         }
     }
 }
@@ -48,6 +54,12 @@ dependencies {
 }
 
 apply from: 'capacitor.build.gradle'
+
+configurations.all {
+    resolutionStrategy {
+        force 'androidx.browser:browser:1.8.0'
+    }
+}
 
 try {
     def servicesJSON = file('google-services.json')

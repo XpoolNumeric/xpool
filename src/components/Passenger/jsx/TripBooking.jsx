@@ -9,7 +9,7 @@ const TripBooking = ({ trip, onBack, onSuccess }) => {
     const [seatsRequested, setSeatsRequested] = useState(1);
     const [message, setMessage] = useState('');
     const [paymentMode, setPaymentMode] = useState('cod');
-    const [pickupLocation, setPickupLocation] = useState('');
+    const [pickupLocation, setPickupLocation] = useState(trip?.searched_from || '');
     const [loading, setLoading] = useState(false);
     const [bookingComplete, setBookingComplete] = useState(false);
 
@@ -66,11 +66,11 @@ const TripBooking = ({ trip, onBack, onSuccess }) => {
                     trip_id: trip.id,
                     passenger_id: session.user.id,
                     seats_requested: seatsRequested,
-                    agreed_price: trip.price_per_seat,
                     message: message.trim() || null,
                     payment_mode: paymentMode,
-                    passenger_location: pickupLocation.trim() || null,
-                    passenger_destination: trip.to_location
+                    passenger_location: pickupLocation.trim() || trip.searched_from || null,
+                    passenger_destination: trip.searched_to || trip.to_location,
+                    agreed_price: trip.agreed_price || trip.price_per_seat
                 },
                 headers: {
                     Authorization: `Bearer ${session.access_token}`
@@ -124,7 +124,7 @@ const TripBooking = ({ trip, onBack, onSuccess }) => {
                     <div className="trip-summary">
                         <div className="summary-item">
                             <span className="label">Route</span>
-                            <span className="value">{trip.from_location} → {trip.to_location}</span>
+                            <span className="value">{trip.searched_from || trip.from_location} → {trip.searched_to || trip.to_location}</span>
                         </div>
                         <div className="summary-item">
                             <span className="label">Date</span>
@@ -147,7 +147,8 @@ const TripBooking = ({ trip, onBack, onSuccess }) => {
         );
     }
 
-    const totalPrice = trip.price_per_seat ? trip.price_per_seat * seatsRequested : null;
+    const basePrice = trip.agreed_price || trip.price_per_seat;
+    const totalPrice = basePrice ? basePrice * seatsRequested : null;
 
     return (
         <div className="trip-booking-container">
@@ -182,7 +183,7 @@ const TripBooking = ({ trip, onBack, onSuccess }) => {
                         <div className="dot from"></div>
                         <div className="point-info">
                             <span className="label">From</span>
-                            <span className="location">{trip.from_location}</span>
+                            <span className="location">{trip.searched_from || trip.from_location}</span>
                         </div>
                     </div>
                     <div className="route-line"></div>
@@ -190,7 +191,7 @@ const TripBooking = ({ trip, onBack, onSuccess }) => {
                         <div className="dot to"></div>
                         <div className="point-info">
                             <span className="label">To</span>
-                            <span className="location">{trip.to_location}</span>
+                            <span className="location">{trip.searched_to || trip.to_location}</span>
                         </div>
                     </div>
                 </div>
@@ -298,15 +299,9 @@ const TripBooking = ({ trip, onBack, onSuccess }) => {
                 {/* Price Summary */}
                 {totalPrice && (
                     <div className="price-summary">
-                        {trip.is_prorated && (
-                            <div style={{ background: '#ecfdf5', color: '#059669', padding: '8px 12px', borderRadius: '8px', fontSize: '0.8rem', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '500' }}>
-                                <span>✨</span>
-                                <span>Prorated dynamically! You are paying for a shorter distance compared to the driver's full ₹{trip.original_price_per_seat} trip.</span>
-                            </div>
-                        )}
                         <div className="price-row">
                             <span>Price per seat</span>
-                            <span>₹{trip.price_per_seat}</span>
+                            <span>₹{basePrice}</span>
                         </div>
                         <div className="price-row">
                             <span>Seats</span>

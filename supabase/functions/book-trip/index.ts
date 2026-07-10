@@ -48,7 +48,7 @@ serve(async (req) => {
 
         console.log("Request body:", JSON.stringify(body))
 
-        const { trip_id, passenger_id, seats_requested, payment_mode, message, passenger_location, passenger_destination } = body
+        const { trip_id, passenger_id, seats_requested, payment_mode, message, passenger_location, passenger_destination, agreed_price } = body
 
         if (!trip_id || !passenger_id || !seats_requested) {
             console.error("Missing fields - trip_id:", trip_id, "passenger_id:", passenger_id, "seats_requested:", seats_requested)
@@ -60,12 +60,24 @@ serve(async (req) => {
             throw new Error('Passenger ID mismatch')
         }
 
-        // 3. Get Trip Details
-        const { data: trip, error: tripError } = await supabaseAdmin
-            .from('trips')
-            .select('user_id, available_seats, status, from_location, to_location, travel_date, travel_time')
-            .eq('id', trip_id)
-            .single()
+        // 3 & 4. Get Trip Details & Check Existing Booking (Parallelized)
+        const [tripResponse, existingBookingResponse] = await Promise.all([
+            supabaseAdmin
+                .from('trips')
+                .select('user_id, available_seats, status, from_location, to_location, travel_date, travel_time')
+                .eq('id', trip_id)
+                .single(),
+            supabaseAdmin
+                .from('booking_requests')
+                .select('id, status')
+                .eq('trip_id', trip_id)
+                .eq('passenger_id', passenger_id)
+                .in('status', ['pending', 'approved'])
+                .maybeSingle()
+        ]);
+
+        const { data: trip, error: tripError } = tripResponse;
+        const { data: existingBooking } = existingBookingResponse;
 
         if (tripError || !trip) {
             throw new Error('Trip not found')
@@ -78,15 +90,6 @@ serve(async (req) => {
         if (trip.available_seats < seats_requested) {
             throw new Error(`Not enough seats available. Only ${trip.available_seats} left.`)
         }
-
-        // 4. Check for existing booking
-        const { data: existingBooking } = await supabaseAdmin
-            .from('booking_requests')
-            .select('id, status')
-            .eq('trip_id', trip_id)
-            .eq('passenger_id', passenger_id)
-            .in('status', ['pending', 'approved'])
-            .maybeSingle()
 
         if (existingBooking) {
             throw new Error(`You already have a ${existingBooking.status} booking for this trip`)
@@ -105,6 +108,7 @@ serve(async (req) => {
                     message,
                     passenger_location: passenger_location || null,
                     passenger_destination: passenger_destination || null,
+                    agreed_price: agreed_price || null,
                     status: 'pending'
                 }
             ])
@@ -116,93 +120,97 @@ serve(async (req) => {
             throw insertError
         }
 
-        // 6. Fetch passenger name and driver info for notifications
-        const passengerName = user.user_metadata?.full_name || user.user_metadata?.first_name || user.email?.split('@')[0] || 'A Passenger'
-        const passengerEmail = user.email || ''
-        const travelDate = trip.travel_date ? new Date(trip.travel_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : 'N/A'
-        const travelTime = trip.travel_time ? trip.travel_time.substring(0, 5) : 'N/A'
-
-        // Fetch driver profile and email (non-critical)
-        let driverName = 'Your Driver'
-        let driverEmail = ''
-        try {
-            const { data: driverProfile } = await supabaseAdmin
-                .from('profiles')
-                .select('full_name')
-                .eq('id', trip.user_id)
-                .single()
-            if (driverProfile?.full_name) driverName = driverProfile.full_name
-
-            // Fetch driver's email from auth (service role only)
-            const { data: driverAuth } = await supabaseAdmin.auth.admin.getUserById(trip.user_id)
-            if (driverAuth?.user?.email) driverEmail = driverAuth.user.email
-        } catch (profileErr) {
-            console.error("Profile fetch error (non-critical):", profileErr)
-        }
-
-        // 7. Send Email to Driver: New Booking Request
-        if (driverEmail) {
-            await sendEmail({
-                to: driverEmail,
-                subject: `New Booking Request — ${trip.from_location} to ${trip.to_location}`,
-                html: newBookingRequestEmail({
-                    driverName,
-                    passengerName,
-                    from: trip.from_location,
-                    to: trip.to_location,
-                    date: travelDate,
-                    time: travelTime,
-                    seats: seats_requested,
-                }),
-            })
-        }
-
-        // 8. Send Email to Passenger: Request Confirmation
-        if (passengerEmail) {
-            await sendEmail({
-                to: passengerEmail,
-                subject: `Booking Requested — ${trip.from_location} → ${trip.to_location}`,
-                html: bookingRequestSentEmail({
-                    passengerName,
-                    from: trip.from_location,
-                    to: trip.to_location,
-                    date: travelDate,
-                    time: travelTime,
-                }),
-            })
-        }
-
-        // 9. Send Notification to Driver (DB Notification)
-        if (trip.user_id) {
+        // 6. Background tasks (Notifications, Emails, Broadcasts)
+        const sendPostBookingNotifications = async () => {
             try {
-                await supabaseAdmin.from('notifications').insert({
-                    user_id: trip.user_id,
-                    type: 'booking_pending',
-                    title: 'New Booking Request',
-                    message: `New request from ${passengerName} for your trip to ${trip.to_location}`,
-                    data: { trip_id: trip_id, booking_id: newBooking.id }
-                })
-            } catch (notifErr) {
-                console.error("Notification error (non-critical):", notifErr)
-            }
+                const passengerName = user.user_metadata?.full_name || user.user_metadata?.first_name || user.email?.split('@')[0] || 'A Passenger'
+                const passengerEmail = user.email || ''
+                const travelDate = trip.travel_date ? new Date(trip.travel_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : 'N/A'
+                const travelTime = trip.travel_time ? trip.travel_time.substring(0, 5) : 'N/A'
 
-            // 10. BROADCAST to Driver (Real-time)
-            const channel = supabaseAdmin.channel(`driver_${trip.user_id}_trips`)
-            await channel.send({
-                type: 'broadcast',
-                event: 'new_booking',
-                payload: {
-                    trip_id: trip_id,
-                    booking_id: newBooking.id,
-                    passenger_id: passenger_id,
-                    passenger_name: passengerName,
-                    seats_requested: seats_requested,
-                    from: trip.from_location,
-                    to: trip.to_location
+                let driverName = 'Your Driver'
+                let driverEmail = ''
+                try {
+                    const { data: driverProfile } = await supabaseAdmin
+                        .from('profiles')
+                        .select('full_name')
+                        .eq('id', trip.user_id)
+                        .single()
+                    if (driverProfile?.full_name) driverName = driverProfile.full_name
+
+                    const { data: driverAuth } = await supabaseAdmin.auth.admin.getUserById(trip.user_id)
+                    if (driverAuth?.user?.email) driverEmail = driverAuth.user.email
+                } catch (profileErr) {
+                    console.error("Profile fetch error (non-critical):", profileErr)
                 }
-            })
-            supabaseAdmin.removeChannel(channel)
-        }
+
+                const emailPromises = [];
+                if (driverEmail) {
+                    emailPromises.push(sendEmail({
+                        to: driverEmail,
+                        subject: `New Booking Request — ${trip.from_location} to ${trip.to_location}`,
+                        html: newBookingRequestEmail({
+                            driverName,
+                            passengerName,
+                            from: trip.from_location,
+                            to: trip.to_location,
+                            date: travelDate,
+                            time: travelTime,
+                            seats: seats_requested,
+                        }),
+                    }).catch(e => console.error("Driver email error:", e)));
+                }
+
+                if (passengerEmail) {
+                    emailPromises.push(sendEmail({
+                        to: passengerEmail,
+                        subject: `Booking Requested — ${trip.from_location} → ${trip.to_location}`,
+                        html: bookingRequestSentEmail({
+                            passengerName,
+                            from: trip.from_location,
+                            to: trip.to_location,
+                            date: travelDate,
+                            time: travelTime,
+                        }),
+                    }).catch(e => console.error("Passenger email error:", e)));
+                }
+
+                // Do not wait for email failure to halt notifications
+                await Promise.all(emailPromises);
+
+                if (trip.user_id) {
+                    await supabaseAdmin.from('notifications').insert({
+                        user_id: trip.user_id,
+                        type: 'booking_pending',
+                        title: 'New Booking Request',
+                        message: `New request from ${passengerName} for your trip to ${trip.to_location}`,
+                        data: { trip_id: trip_id, booking_id: newBooking.id }
+                    }).catch(e => console.error("Notif error:", e));
+
+                    const channel = supabaseAdmin.channel(`driver_${trip.user_id}_trips`)
+                    await channel.send({
+                        type: 'broadcast',
+                        event: 'new_booking',
+                        payload: {
+                            trip_id: trip_id,
+                            booking_id: newBooking.id,
+                            passenger_id: passenger_id,
+                            passenger_name: passengerName,
+                            seats_requested: seats_requested,
+                            from: trip.from_location,
+                            to: trip.to_location
+                        }
+                    }).catch(e => console.error("Broadcast error:", e));
+                    supabaseAdmin.removeChannel(channel)
+                }
+            } catch (err) {
+                console.error("Background sync error:", err);
+            }
+        };
+
+        // Execute notifications and await them to prevent V8 Isolate panic on Deno Deploy
+        // Parallelizing them internally via Promise.all is sufficient to scale the throughput
+        await sendPostBookingNotifications();
 
         return new Response(
             JSON.stringify({ success: true, data: newBooking }),

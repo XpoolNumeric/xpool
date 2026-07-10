@@ -69,7 +69,7 @@ serve(async (req) => {
                 const { data: booking, error: bookingErr } = await supabaseAdmin
                     .from('booking_requests')
                     .select(`
-                        id, passenger_id, seats_requested, trip_id,
+                        id, passenger_id, seats_requested, trip_id, agreed_price,
                         trips:trip_id(price_per_seat, user_id)
                     `)
                     .eq('id', booking_id)
@@ -83,7 +83,8 @@ serve(async (req) => {
                 const tripData = Array.isArray(booking.trips) ? booking.trips[0] : booking.trips;
                 if (!tripData) throw new Error('Trip data not found');
 
-                const totalAmount = Number(tripData.price_per_seat || 0) * Number(booking.seats_requested || 1);
+                const basePrice = Number(booking.agreed_price) || Number(tripData.price_per_seat || 0);
+                const totalAmount = basePrice * Number(booking.seats_requested || 1);
                 if (!totalAmount || totalAmount <= 0) throw new Error('Invalid total amount: ' + totalAmount);
 
                 const COMMISSION_RATE = 0.15;
@@ -206,7 +207,8 @@ serve(async (req) => {
                 success: true,
                 payment_session_id: cashfreeData.payment_session_id,
                 order_id: orderId,
-                payment_id: finalPaymentId
+                payment_id: finalPaymentId,
+                environment: env
             }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
         )

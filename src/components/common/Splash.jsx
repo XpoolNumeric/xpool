@@ -1,19 +1,22 @@
 import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
-import logo from '../../assets/logo_real.jpg';
+import logo from '../../assets/app_logo.png';
 import onboardingBottom from '../../assets/onboarding-bottom.png';
 import './Splash.css';
 
 const Splash = ({ onFinish, isReady }) => {
   const [minTimeElapsed, setMinTimeElapsed] = React.useState(false);
 
+  // If isReady is true, we bypass the arbitrary 2s delay. This makes reloads of the web app extremely fast for logged-in users while maintaining the visual transition.
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setMinTimeElapsed(true);
-    }, 2000);
-
-    return () => clearTimeout(timer);
-  }, []);
+    if (isReady) {
+      console.log('[Splash] App ready. Finishing splash instantly...');
+      onFinish();
+    } else {
+      const timer = setTimeout(() => setMinTimeElapsed(true), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [isReady, onFinish]);
 
   useEffect(() => {
     if (minTimeElapsed && isReady) {

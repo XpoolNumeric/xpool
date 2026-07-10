@@ -11,7 +11,8 @@
     width: 100%;
     height: 100%;
     z-index: 50;
-    pointer-events: none; /* clicks pass through to map */
+    pointer-events: none;
+    /* clicks pass through to map */
     overflow: hidden;
 }
 
@@ -28,7 +29,7 @@
     border-top-left-radius: 28px;
     border-top-right-radius: 28px;
     box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.10),
-                0 -2px 10px rgba(0, 0, 0, 0.04);
+        0 -2px 10px rgba(0, 0, 0, 0.04);
     display: flex;
     flex-direction: column;
     padding: 0 1.25rem;
@@ -53,6 +54,7 @@
         transform: translateY(100%);
         opacity: 0.6;
     }
+
     to {
         transform: translateY(0);
         opacity: 1;
@@ -182,7 +184,8 @@
     position: relative;
 }
 
-.results-divider::before, .results-divider::after {
+.results-divider::before,
+.results-divider::after {
     content: '';
     flex: 1;
     border-bottom: 1px solid #fed7aa;
@@ -452,7 +455,9 @@
 }
 
 @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 /* ── Hidden map area (not needed, PassengerHome provides map) ── */

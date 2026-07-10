@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import { formatDate, formatTime, isTripToday, getTimeUntilTrip, isTripPast } from '../../../utils/dateHelper';
 import Chat from '../../common/Chat';
 import { getSafeSession } from '../../../utils/webViewHelper';
+import PaymentScreen from './PaymentScreen';
 import '../css/MyBookings.css';
 import '../css/MyBookingsChat.css';
 
@@ -15,6 +16,8 @@ const MyBookings = ({ onBack, onViewDetails, onPaymentRequired }) => {
     const [chatTripId, setChatTripId] = useState(null);
     const [chatBookingId, setChatBookingId] = useState(null);
     const [currentUserId, setCurrentUserId] = useState(null);
+    const [showPaymentModal, setShowPaymentModal] = useState(false);
+    const [paymentModalData, setPaymentModalData] = useState(null);
 
     useEffect(() => {
         fetchBookings();
@@ -160,7 +163,8 @@ const MyBookings = ({ onBack, onViewDetails, onPaymentRequired }) => {
                         travel_time,
                         vehicle_type,
                         price_per_seat,
-                        status
+                        status,
+                        user_id
                     ),
                     ride_payments (
                         id,
@@ -210,7 +214,7 @@ const MyBookings = ({ onBack, onViewDetails, onPaymentRequired }) => {
                 // ✅ FIX: Use explicit ternary + Number() conversion
                 // Avoids issues where ridePayment is null (record not created yet)
                 // and Supabase returns numeric columns as strings e.g. "150.00"
-                const pricePerSeat = Number(trip?.price_per_seat) || 0;
+                const pricePerSeat = Number(booking.agreed_price) || Number(trip?.price_per_seat) || 0;
                 const seats = Number(booking.seats_requested) || 1;
                 const computedTotal = ridePayment?.total_amount
                     ? Number(ridePayment.total_amount)
@@ -228,7 +232,7 @@ const MyBookings = ({ onBack, onViewDetails, onPaymentRequired }) => {
                     trips: trip,                    // ✅ always a plain object now
                     ride_payment: ridePayment || null,
                     computed_total: computedTotal,  // ✅ single source of truth for amount
-                    otp: booking.otp_code || null,
+                    otp: booking.otp_code || trip?.otp_code || null,
                     driver_details: driverProfile ? {
                         id: driverProfile.id,
                         full_name: driverProfile.full_name,
@@ -470,7 +474,7 @@ const MyBookings = ({ onBack, onViewDetails, onPaymentRequired }) => {
                                             )}
 
                                             {/* Waiting for OTP — trip is today but driver hasn't generated OTP yet */}
-                                            {!booking.otp && booking.status === 'approved' && booking.trips?.status !== 'in_progress' && booking.trips?.status !== 'completed' && isTripToday(booking.trips?.travel_date) && (
+                                            {!booking.otp && booking.status === 'approved' && booking.trips?.status !== 'completed' && isTripToday(booking.trips?.travel_date) && (
                                                 <div className="otp-section otp-section--waiting">
                                                     <span className="otp-label">⏳ Waiting for OTP</span>
                                                     <span className="otp-note">
@@ -487,16 +491,13 @@ const MyBookings = ({ onBack, onViewDetails, onPaymentRequired }) => {
                                                         onClick={(e) => {
                                                             e.stopPropagation();
                                                             const rp = booking.ride_payment;
-                                                            if (onPaymentRequired) {
-                                                                onPaymentRequired({
-                                                                    payment_id: rp?.id,
-                                                                    booking_id: booking.id,
-                                                                    amount: booking.computed_total, // ✅ clean pre-computed value
-                                                                    cashfree_order_id: rp?.cashfree_order_id
-                                                                });
-                                                            } else if (onViewDetails) {
-                                                                onViewDetails(booking);
-                                                            }
+                                                            setPaymentModalData({
+                                                                payment_id: rp?.id,
+                                                                booking_id: booking.id,
+                                                                amount: booking.computed_total, // ✅ clean pre-computed value
+                                                                cashfree_order_id: rp?.cashfree_order_id
+                                                            });
+                                                            setShowPaymentModal(true);
                                                         }}
                                                     >
                                                         {/* ✅ FIX: single reliable source, no IIFE fallback needed */}
@@ -512,12 +513,12 @@ const MyBookings = ({ onBack, onViewDetails, onPaymentRequired }) => {
                                                 <div className="trip-route">
                                                     <div className="route-point">
                                                         <div className="dot from"></div>
-                                                        <span>{booking.trips.from_location}</span>
+                                                        <span>{booking.passenger_location || booking.trips.from_location}</span>
                                                     </div>
                                                     <div className="route-line"></div>
                                                     <div className="route-point">
                                                         <div className="dot to"></div>
-                                                        <span>{booking.trips.to_location}</span>
+                                                        <span>{booking.passenger_destination || booking.trips.to_location}</span>
                                                     </div>
                                                 </div>
 
@@ -621,6 +622,73 @@ const MyBookings = ({ onBack, onViewDetails, onPaymentRequired }) => {
                             setChatBookingId(null);
                         }}
                     />
+                </div>
+            )}
+
+            {/* Inline Payment Modal Overlay */}
+            {showPaymentModal && paymentModalData && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        zIndex: 1000,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'flex-end',
+                        backgroundColor: 'rgba(0,0,0,0.55)',
+                        backdropFilter: 'blur(4px)',
+                        animation: 'fadeIn 0.2s ease',
+                    }}
+                    onClick={(e) => { if (e.target === e.currentTarget) setShowPaymentModal(false); }}
+                >
+                    <div
+                        style={{
+                            background: '#fff',
+                            borderTopLeftRadius: '1.5rem',
+                            borderTopRightRadius: '1.5rem',
+                            maxHeight: '90vh',
+                            overflowY: 'auto',
+                            animation: 'slideUp 0.3s cubic-bezier(0.22,1,0.36,1)',
+                            boxShadow: '0 -8px 40px rgba(0,0,0,0.18)',
+                            position: 'relative',
+                        }}
+                    >
+                        {/* Drag handle bar */}
+                        <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 0' }}>
+                            <div style={{ width: '40px', height: '4px', borderRadius: '99px', background: '#e5e7eb' }} />
+                        </div>
+                        {/* Close button */}
+                        <button
+                            onClick={() => setShowPaymentModal(false)}
+                            style={{
+                                position: 'absolute', top: '16px', right: '16px',
+                                background: '#f3f4f6', border: 'none', borderRadius: '50%',
+                                width: '32px', height: '32px', display: 'flex', alignItems: 'center',
+                                justifyContent: 'center', cursor: 'pointer', zIndex: 10
+                            }}
+                        >
+                            <XCircle size={18} color="#6b7280" />
+                        </button>
+                        <PaymentScreen
+                            paymentData={paymentModalData}
+                            onBack={() => setShowPaymentModal(false)}
+                            onPaymentComplete={() => {
+                                setShowPaymentModal(false);
+                                toast.success('Payment successful! 🎉');
+                                fetchBookings();
+                            }}
+                        />
+                    </div>
+                    <style>{`
+                        @keyframes slideUp {
+                            from { transform: translateY(100%); opacity: 0; }
+                            to { transform: translateY(0); opacity: 1; }
+                        }
+                        @keyframes fadeIn {
+                            from { opacity: 0; }
+                            to { opacity: 1; }
+                        }
+                    `}</style>
                 </div>
             )}
         </div>

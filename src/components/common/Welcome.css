@@ -19,7 +19,7 @@
 
 .welcome-back-btn {
     position: absolute;
-    top: 20px;
+    top: calc(var(--safe-area-top) + 20px);
     left: 20px;
     background: rgba(255, 255, 255, 0.9);
     border: 2px solid #FACC15;
@@ -55,7 +55,7 @@
     font-weight: 700;
     line-height: 1.1;
     color: #000;
-    margin-top: 100px;
+    margin-top: calc(var(--safe-area-top) + 80px);
     text-align: left;
     max-width: 60%;
     letter-spacing: -1px;

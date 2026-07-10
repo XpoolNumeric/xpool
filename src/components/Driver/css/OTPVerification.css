@@ -103,7 +103,7 @@
     background: rgba(250, 248, 245, 0.88);
     backdrop-filter: blur(24px) saturate(180%);
     -webkit-backdrop-filter: blur(24px) saturate(180%);
-    padding: calc(env(safe-area-inset-top, 20px) + 1rem) 1.25rem 0.875rem;
+    padding: calc(var(--safe-area-top) + 1rem) 1.25rem 0.875rem;
     display: grid;
     grid-template-columns: 44px 1fr 44px;
     align-items: center;

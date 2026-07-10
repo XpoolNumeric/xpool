@@ -299,10 +299,39 @@ const MyTrips = ({ onBack, onRideStart }) => {
     const validateAndStartTrip = async (tripId) => {
         try {
             setStartingTripId(tripId);
+            
+            // Check for pending requests before allowing the trip to start
+            const { data: pendingReqs, error: pendingError } = await supabase
+                .from('booking_requests')
+                .select('id')
+                .eq('trip_id', tripId)
+                .eq('status', 'pending');
+
+            if (pendingError) {
+                console.error('[MyTrips] Error checking pending requests:', pendingError);
+            }
+
+            if (pendingReqs && pendingReqs.length > 0) {
+                toast.error(`You have ${pendingReqs.length} pending request(s). Please accept or reject them to start the trip.`);
+                setStartingTripId(null);
+                return;
+            }
+
             const trip = trips.find(t => t.id === tripId);
 
-            // Artificial tiny delay for smoother UI feedback
-            await new Promise(resolve => setTimeout(resolve, 600));
+            // Call edge function to officially start trip and broadcast to passengers
+            const { data: { session } } = await supabase.auth.getSession();
+            const { data: startData, error: startError } = await supabase.functions.invoke('validate-trip-start', {
+                body: { tripId: tripId, driverId: session.user.id, action: 'start' },
+                headers: { Authorization: `Bearer ${session?.access_token}` }
+            });
+
+            if (startError || !startData?.success) {
+                console.error('[MyTrips] Error from validate-trip-start:', startError || startData);
+                toast.error(startData?.error || 'Failed to start trip on server.');
+                setStartingTripId(null);
+                return;
+            }
 
             if (onRideStart) {
                 onRideStart(trip);
@@ -343,10 +372,9 @@ const MyTrips = ({ onBack, onRideStart }) => {
     const handleCancelTrip = async () => {
         if (!selectedTrip) return;
         try {
-            const { error } = await supabase
-                .from('trips')
-                .update({ status: 'cancelled' })
-                .eq('id', selectedTrip.id);
+            const { error } = await supabase.rpc('cancel_trip_and_notify', {
+                p_trip_id: selectedTrip.id
+            });
 
             if (error) throw error;
 

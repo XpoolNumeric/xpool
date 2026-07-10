@@ -23,6 +23,7 @@
     --status-error: #ef4444;
     --status-warning: #f59e0b;
     --status-info: #3b82f6;
+    --safe-area-top: env(safe-area-inset-top, 24px);
   }
 
   html, body, #root {
@@ -37,6 +38,25 @@
   }
 
   /* Premium Utilities */
+  .sub-page-header {
+    background: white;
+    padding: calc(var(--safe-area-top) + 12px) 20px 12px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  .sub-page-header h2 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin: 0;
+  }
+
   .glass-effect {
     background: var(--bg-glass);
     backdrop-filter: blur(12px);

@@ -71,7 +71,7 @@
     background: rgba(255, 255, 255, 0.92);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    padding: calc(env(safe-area-inset-top, 24px) + 1.25rem) 1.25rem 0.9rem;
+    padding: calc(var(--safe-area-top) + 1.25rem) 1.25rem 0.9rem;
     display: flex;
     align-items: center;
     justify-content: space-between;
