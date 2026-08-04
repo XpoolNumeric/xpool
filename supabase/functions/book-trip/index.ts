@@ -7,35 +7,46 @@ const corsHeaders = {
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-serve(async (req) => {
+serve(async (req: Request) => {
     if (req.method === 'OPTIONS') {
         return new Response('ok', { headers: corsHeaders })
     }
 
     try {
-        // 1. Create User Client to Verify Identity
+        // 1. Verify User Identity
         const authHeader = req.headers.get('Authorization')
         if (!authHeader) {
             throw new Error('Missing Authorization header')
         }
 
-        const supabaseClient = createClient(
-            Deno.env.get('SUPABASE_URL') ?? '',
-            Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-            { global: { headers: { Authorization: authHeader } } }
-        )
+        const token = authHeader.replace(/^Bearer\s+/i, '')
 
-        const { data: { user }, error: authError } = await supabaseClient.auth.getUser()
-        if (authError || !user) {
-            console.error("Auth error:", authError)
-            throw new Error('Unauthorized')
-        }
-
-        // 2. Create Admin Client for DB Operations (Bypass RLS)
+        // 2. Create Admin Client for DB Operations & Verification
         const supabaseAdmin = createClient(
             Deno.env.get('SUPABASE_URL') ?? '',
             Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
         )
+
+        let user: any = null
+        const { data: adminUserData, error: adminAuthErr } = await supabaseAdmin.auth.getUser(token)
+        if (adminUserData?.user && !adminAuthErr) {
+            user = adminUserData.user
+        } else {
+            const supabaseClient = createClient(
+                Deno.env.get('SUPABASE_URL') ?? '',
+                Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+                { global: { headers: { Authorization: authHeader } } }
+            )
+            const { data: clientUserData, error: clientAuthErr } = await supabaseClient.auth.getUser()
+            if (clientUserData?.user && !clientAuthErr) {
+                user = clientUserData.user
+            }
+        }
+
+        if (!user) {
+            console.error("Auth error: Could not verify user from token")
+            throw new Error('Unauthorized')
+        }
 
         // Parse request body
         let body
@@ -179,28 +190,36 @@ serve(async (req) => {
                 await Promise.all(emailPromises);
 
                 if (trip.user_id) {
-                    await supabaseAdmin.from('notifications').insert({
-                        user_id: trip.user_id,
-                        type: 'booking_pending',
-                        title: 'New Booking Request',
-                        message: `New request from ${passengerName} for your trip to ${trip.to_location}`,
-                        data: { trip_id: trip_id, booking_id: newBooking.id }
-                    }).catch(e => console.error("Notif error:", e));
+                    try {
+                        await supabaseAdmin.from('notifications').insert({
+                            user_id: trip.user_id,
+                            type: 'booking_pending',
+                            title: 'New Booking Request',
+                            message: `New request from ${passengerName} for your trip to ${trip.to_location}`,
+                            data: { trip_id: trip_id, booking_id: newBooking.id }
+                        });
+                    } catch (e) {
+                        console.error("Notif error:", e);
+                    }
 
                     const channel = supabaseAdmin.channel(`driver_${trip.user_id}_trips`)
-                    await channel.send({
-                        type: 'broadcast',
-                        event: 'new_booking',
-                        payload: {
-                            trip_id: trip_id,
-                            booking_id: newBooking.id,
-                            passenger_id: passenger_id,
-                            passenger_name: passengerName,
-                            seats_requested: seats_requested,
-                            from: trip.from_location,
-                            to: trip.to_location
-                        }
-                    }).catch(e => console.error("Broadcast error:", e));
+                    try {
+                        await channel.send({
+                            type: 'broadcast',
+                            event: 'new_booking',
+                            payload: {
+                                trip_id: trip_id,
+                                booking_id: newBooking.id,
+                                passenger_id: passenger_id,
+                                passenger_name: passengerName,
+                                seats_requested: seats_requested,
+                                from: trip.from_location,
+                                to: trip.to_location
+                            }
+                        });
+                    } catch (e) {
+                        console.error("Broadcast error:", e);
+                    }
                     supabaseAdmin.removeChannel(channel)
                 }
             } catch (err) {
@@ -220,8 +239,8 @@ serve(async (req) => {
     } catch (error) {
         console.error("Function Error:", error)
         return new Response(
-            JSON.stringify({ success: false, error: error.message }),
+            JSON.stringify({ success: false, error: (error as any).message }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
         )
     }
-})
+});

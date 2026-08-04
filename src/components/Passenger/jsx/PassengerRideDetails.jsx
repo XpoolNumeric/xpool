@@ -15,6 +15,7 @@ const PassengerRideDetails = ({ booking, onBack, onPaymentRequired }) => {
     // Handle cases where Supabase might return trips as an array or object
     const initialTrip = Array.isArray(booking?.trips) ? booking.trips[0] : booking?.trips;
 
+    const [bookingDetails, setBookingDetails] = useState(booking);
     const [trip, setTrip] = useState(initialTrip);
     const [driver, setDriver] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -34,6 +35,15 @@ const PassengerRideDetails = ({ booking, onBack, onPaymentRequired }) => {
     const mapInstanceRef = useRef(null);
     const driverMarkerRef = useRef(null);
 
+    // Keep bookingDetails in sync with booking prop changes
+    useEffect(() => {
+        setBookingDetails(booking);
+        if (booking?.ride_payment?.payment_status === 'paid') {
+            setIsPaid(true);
+        }
+    }, [booking]);
+
+    // Fetch booking, trip, driver and route details
     useEffect(() => {
         const getSession = async () => {
             const { data: { session } } = await supabase.auth.getSession();
@@ -41,14 +51,62 @@ const PassengerRideDetails = ({ booking, onBack, onPaymentRequired }) => {
         };
         getSession();
 
-        if (!trip?.id) {
-            setLoading(false);
-            return;
-        }
+        const loadData = async () => {
+            setLoading(true);
+            let currentBooking = booking;
 
-        fetchData();
+            // If the booking does not have trip details populated, fetch from Supabase
+            if (booking?.id && (!booking.trips || !booking.driver_id)) {
+                try {
+                    console.log('[PassengerRideDetails] Fetching full booking details for:', booking.id);
+                    const { data, error } = await supabase
+                        .from('booking_requests')
+                        .select(`
+                            *,
+                            trips (
+                                *
+                            ),
+                            ride_payments (
+                                *
+                            )
+                        `)
+                        .eq('id', booking.id)
+                        .maybeSingle();
 
-        // Subscribe to trip updates
+                    if (error) throw error;
+                    if (data) {
+                        currentBooking = {
+                            ...data,
+                            trips: Array.isArray(data.trips) ? data.trips[0] : data.trips,
+                            ride_payment: Array.isArray(data.ride_payments) ? data.ride_payments[0] : data.ride_payments
+                        };
+                        setBookingDetails(currentBooking);
+                    }
+                } catch (err) {
+                    console.error('[PassengerRideDetails] Error fetching booking details:', err);
+                }
+            } else {
+                setBookingDetails(booking);
+            }
+
+            const resolvedTrip = Array.isArray(currentBooking?.trips) ? currentBooking.trips[0] : currentBooking?.trips;
+
+            if (!resolvedTrip?.id) {
+                setLoading(false);
+                return;
+            }
+
+            setTrip(resolvedTrip);
+            await fetchDriverAndExtraData(currentBooking, resolvedTrip);
+        };
+
+        loadData();
+    }, [booking?.id]);
+
+    // Real-time subscription to trip updates and live tracking
+    useEffect(() => {
+        if (!trip?.id) return;
+
         const subscription = supabase
             .channel(`trip_${trip.id}`)
             .on('postgres_changes', {
@@ -75,7 +133,8 @@ const PassengerRideDetails = ({ booking, onBack, onPaymentRequired }) => {
             .subscribe();
 
         // Handle Live Tracking
-        if (!isExpired && trip?.status === 'in_progress' && trip?.id) {
+        const isExpiredTrip = isTripPast(trip.travel_date) && trip.status !== 'completed';
+        if (!isExpiredTrip && trip.status === 'in_progress') {
             liveTrackingService.startTracking(trip.id, (location) => {
                 if (!mapInstanceRef.current) return;
 
@@ -94,9 +153,6 @@ const PassengerRideDetails = ({ booking, onBack, onPaymentRequired }) => {
                         'https://maps.google.com/mapfiles/kml/shapes/cabs.png' // Simple car icon
                     );
                 }
-
-                // Slowly pan to keep driver in view (optional, might annoy user if they are panning)
-                // mapInstanceRef.current.panTo(location);
             }, 'passenger');
         }
 
@@ -141,7 +197,9 @@ const PassengerRideDetails = ({ booking, onBack, onPaymentRequired }) => {
                 if (payload.payload?.trip_id === trip.id) {
                     toast.success('💸 Payment confirmed by driver!');
                     setIsPaid(true);
-                    fetchData();
+                    if (bookingDetails) {
+                        fetchDriverAndExtraData(bookingDetails, trip);
+                    }
                 }
             })
             .subscribe();
@@ -151,12 +209,12 @@ const PassengerRideDetails = ({ booking, onBack, onPaymentRequired }) => {
         };
     }, [currentUserId, trip?.id]);
 
-    const fetchData = async () => {
+    const fetchDriverAndExtraData = async (currentBooking, resolvedTrip) => {
         // Use driver_details from booking if available (passed from MyBookings)
-        const bookingDriverDetails = booking?.driver_details;
+        const bookingDriverDetails = currentBooking?.driver_details;
 
         // Try fetching fresh driver info from profiles table using driver_id or trip.user_id
-        const driverId = booking?.driver_id || trip?.user_id;
+        const driverId = currentBooking?.driver_id || resolvedTrip?.user_id;
 
         if (driverId) {
             try {
@@ -238,17 +296,17 @@ const PassengerRideDetails = ({ booking, onBack, onPaymentRequired }) => {
 
         try {
             // Get OTP from booking object directly
-            const finalOtp = booking.otp || booking.otp_code || trip?.otp_code;
-            if (trip?.id && booking.status === 'approved' && finalOtp) {
+            const finalOtp = currentBooking.otp || currentBooking.otp_code || resolvedTrip?.otp_code;
+            if (resolvedTrip?.id && currentBooking.status === 'approved' && finalOtp) {
                 setOtp(finalOtp);
             }
 
-            initializeGoogleMaps();
+            initializeGoogleMaps(resolvedTrip);
             
             // Check if trip is already completed when opening details
-            if (trip?.status === 'completed') {
+            if (resolvedTrip?.status === 'completed') {
                 const ratedTrips = JSON.parse(localStorage.getItem('rated_trips') || '{}');
-                if (!ratedTrips[trip.id]) {
+                if (!ratedTrips[resolvedTrip.id]) {
                     setShowRating(true);
                 }
             }
@@ -259,13 +317,13 @@ const PassengerRideDetails = ({ booking, onBack, onPaymentRequired }) => {
         }
     };
 
-    const initializeGoogleMaps = async () => {
+    const initializeGoogleMaps = async (tripInfo) => {
         try {
             // API key is now handled by APIProvider in App.jsx
             // Wait for window.google to be available (already ensured by APIProvider)
             if (!window.google) {
                 console.warn('Google Maps not yet available, retrying...');
-                setTimeout(initializeGoogleMaps, 500);
+                setTimeout(() => initializeGoogleMaps(tripInfo), 500);
                 return;
             }
 
@@ -278,8 +336,8 @@ const PassengerRideDetails = ({ booking, onBack, onPaymentRequired }) => {
             // Show route
             const route = await createRoute(
                 map,
-                trip.from_location,
-                trip.to_location
+                tripInfo.from_location,
+                tripInfo.to_location
             );
 
             setRouteInfo(route);
@@ -452,7 +510,7 @@ const PassengerRideDetails = ({ booking, onBack, onPaymentRequired }) => {
                             <div className="dot from"></div>
                             <div className="text">
                                 <span className="label">From</span>
-                                <span className="val">{booking.passenger_location || trip.from_location}</span>
+                                <span className="val">{bookingDetails.passenger_location || trip.from_location}</span>
                             </div>
                         </div>
                         <div className="line"></div>
@@ -460,7 +518,7 @@ const PassengerRideDetails = ({ booking, onBack, onPaymentRequired }) => {
                             <div className="dot to"></div>
                             <div className="text">
                                 <span className="label">To</span>
-                                <span className="val">{booking.passenger_destination || trip.to_location}</span>
+                                <span className="val">{bookingDetails.passenger_destination || trip.to_location}</span>
                             </div>
                         </div>
                     </div>
@@ -483,11 +541,11 @@ const PassengerRideDetails = ({ booking, onBack, onPaymentRequired }) => {
                         </div>
                         <div className="sched-item">
                             <span className="label">Seats</span>
-                            <span className="val">{booking.seats_requested} Requested</span>
+                            <span className="val">{bookingDetails.seats_requested} Requested</span>
                         </div>
                         <div className="sched-item">
                             <span className="label">Total Price</span>
-                            <span className="val">₹{(Number(booking.agreed_price) || trip.price_per_seat) * booking.seats_requested}</span>
+                            <span className="val">₹{(Number(bookingDetails.agreed_price) || trip.price_per_seat) * bookingDetails.seats_requested}</span>
                         </div>
                     </div>
                 </div>
@@ -499,7 +557,7 @@ const PassengerRideDetails = ({ booking, onBack, onPaymentRequired }) => {
                             <div className="pulse-dot"></div>
                             <span>Your trip is active now</span>
                         </div>
-                        {isPaid || booking?.ride_payment?.payment_status === 'paid' ? (
+                        {isPaid || bookingDetails?.ride_payment?.payment_status === 'paid' ? (
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '16px', background: '#ecfdf5', color: '#10b981', borderRadius: '12px', fontWeight: 'bold' }}>
                                 <CheckCircle size={20} /> Payment Completed
                             </div>
@@ -510,17 +568,17 @@ const PassengerRideDetails = ({ booking, onBack, onPaymentRequired }) => {
                                     if (onPaymentRequired) {
                                         onPaymentRequired({
                                             trip_id: trip.id,
-                                            booking_id: booking.id, 
-                                            amount: (Number(booking.agreed_price) || trip.price_per_seat) * booking.seats_requested,
-                                            payment_id: booking?.payment_id || trip?.payment_id
+                                            booking_id: bookingDetails.id, 
+                                            amount: (Number(bookingDetails.agreed_price) || trip.price_per_seat) * bookingDetails.seats_requested,
+                                            payment_id: bookingDetails?.payment_id || trip?.payment_id
                                         });
                                     } else {
                                         // Show inline payment modal (preferred)
                                         setPaymentModalData({
                                             trip_id: trip.id,
-                                            booking_id: booking.id,
-                                            amount: (Number(booking.agreed_price) || trip.price_per_seat) * booking.seats_requested,
-                                            payment_id: booking?.payment_id || trip?.payment_id
+                                            booking_id: bookingDetails.id,
+                                            amount: (Number(bookingDetails.agreed_price) || trip.price_per_seat) * bookingDetails.seats_requested,
+                                            payment_id: bookingDetails?.payment_id || trip?.payment_id
                                         });
                                         setShowPaymentModal(true);
                                     }
@@ -537,7 +595,7 @@ const PassengerRideDetails = ({ booking, onBack, onPaymentRequired }) => {
             {showChat && (
                 <div className="chat-overlay-container">
                     <Chat
-                        tripId={booking?.trip_id || trip?.id}
+                        tripId={bookingDetails?.trip_id || trip?.id}
                         currentUserId={currentUserId}
                         onBack={() => setShowChat(false)}
                     />
@@ -547,7 +605,7 @@ const PassengerRideDetails = ({ booking, onBack, onPaymentRequired }) => {
             {showRating && (
                 <UnifiedRatingModal
                     targetUser={{
-                        id: booking?.driver_id || trip?.user_id,
+                        id: bookingDetails?.driver_id || trip?.user_id,
                         name: driver?.name || 'Driver'
                     }}
                     tripId={trip.id}

@@ -8,7 +8,7 @@ const corsHeaders = {
 
 const COMMISSION_RATE = 0.15 // 15% platform commission
 
-serve(async (req) => {
+serve(async (req: Request) => {
     if (req.method === 'OPTIONS') {
         return new Response('ok', { headers: corsHeaders })
     }
@@ -145,7 +145,7 @@ serve(async (req) => {
             .eq('trip_id', trip_id)
             .in('status', ['approved', 'completed'])
 
-        const allDropped = totalApproved?.every(b => b.drop_status === 'completed') || false
+        const allDropped = totalApproved?.every((b: any) => b.drop_status === 'completed') || false
 
         if (allDropped) {
             // Don't mark trip completed here — driver must swipe-to-finish.
@@ -173,7 +173,7 @@ serve(async (req) => {
     } catch (error) {
         console.error('Function Error:', error)
         return new Response(
-            JSON.stringify({ success: false, error: error.message }),
+            JSON.stringify({ success: false, error: (error as any).message }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
         )
     }

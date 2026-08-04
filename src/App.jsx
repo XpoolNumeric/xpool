@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Suspense, useCallback } from 'react';
+import React, { useState, useEffect, Suspense, useCallback, useRef } from 'react';
 import { Toaster } from 'react-hot-toast';
 import { supabase } from './supabaseClient';
 import { syncStateToBackend, fetchStateFromBackend } from './utils/userStateSync';
@@ -6,7 +6,7 @@ import { useNativePermissions } from './hooks/useNativePermissions';
 import { App as CapacitorApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import { setStatusBarDark, setStatusBarLight } from './utils/statusBar';
-import { registerPushNotifications, removeFcmTokenFromDb } from './utils/pushNotifications';
+import { registerPushNotifications, removeFcmTokenFromDb, setNotificationClickCallback } from './utils/pushNotifications';
 
 import Splash from './components/common/Splash';
 import Onboarding from './components/common/Onboarding';
@@ -19,6 +19,7 @@ import PhoneLogin from './components/common/PhoneLogin';
 
 import OTPVerification from './components/common/OTPVerification';
 import EmailOTPVerification from './components/common/EmailOTPVerification';
+import CompleteProfile from './components/common/CompleteProfile';
 
 // Notification & Utilities
 import { subscribeToNotifications, unsubscribeFromNotifications } from './utils/notificationHelper';
@@ -63,7 +64,7 @@ function App() {
   const [currentScreen, setCurrentScreen] = useState(() => {
     const saved = localStorage.getItem('currentScreen');
     if (!saved) return 'splash';
-    const validScreens = new Set(['splash', 'onboarding', 'roleSelection', 'authSelection', 'login', 'signup', 'phoneLogin', 'otpVerification', 'emailOTPVerification', 'rideOtpVerification', 'welcome', 'poolingSelection', 'driverDocuments', 'verificationInProgress', 'driverWelcome', 'driverHome', 'driverWallet', 'publishTrip', 'myTrips', 'bookingRequests', 'activeRide', 'passengerHome', 'searchTrips', 'tripBooking', 'passengerProfile', 'passengerWallet', 'paymentDetails', 'myBookings', 'rideHistory', 'passengerRideDetails', 'paymentScreen', 'profile', 'linkGoogle']);
+    const validScreens = new Set(['splash', 'onboarding', 'roleSelection', 'authSelection', 'login', 'signup', 'phoneLogin', 'otpVerification', 'emailOTPVerification', 'completeProfile', 'rideOtpVerification', 'welcome', 'poolingSelection', 'driverDocuments', 'verificationInProgress', 'driverWelcome', 'driverHome', 'driverWallet', 'publishTrip', 'myTrips', 'bookingRequests', 'activeRide', 'passengerHome', 'searchTrips', 'tripBooking', 'passengerProfile', 'passengerWallet', 'paymentDetails', 'myBookings', 'rideHistory', 'passengerRideDetails', 'paymentScreen', 'profile', 'linkGoogle']);
     return validScreens.has(saved) ? saved : 'splash';
   });
 
@@ -107,6 +108,67 @@ function App() {
   });
   const [isSessionInitializing, setIsSessionInitializing] = useState(true);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+
+  // ── Notification redirect ──────────────────────────────────────────────────
+  // Use a ref so the callback always reads the LIVE isSessionInitializing value,
+  // avoiding the stale-closure bug that caused it to always defer.
+  const isSessionInitializingRef = useRef(true);
+  useEffect(() => {
+    isSessionInitializingRef.current = isSessionInitializing;
+  }, [isSessionInitializing]);
+
+  const handleNotificationRedirect = useCallback((data) => {
+    console.log('[App] handleNotificationRedirect:', data);
+    if (!data) return;
+
+    // Read live value via ref — not stale closure
+    if (isSessionInitializingRef.current) {
+      console.log('[App] Session not ready yet, deferring notification redirect.');
+      localStorage.setItem('pending_notification_data', JSON.stringify(data));
+      return;
+    }
+
+    const bookingId = data.booking_id || data.reference_id;
+    const type = data.type;
+
+    if (type === 'booking_pending') {
+      // Driver: new booking request — go to booking requests screen
+      console.log('[App] Notification → bookingRequests (driver)');
+      setCurrentScreen('bookingRequests');
+    } else if (bookingId) {
+      // Passenger: booking status update — go to ride details
+      console.log('[App] Notification → passengerRideDetails, bookingId:', bookingId);
+      // Set selectedTrip with _fromNotification flag so PassengerRideDetails knows
+      // to fetch the full record and onBack navigates safely
+      setSelectedTrip({ id: bookingId, _fromNotification: true });
+      setCurrentScreen('passengerRideDetails');
+    } else {
+      console.warn('[App] Notification missing bookingId, cannot redirect:', data);
+    }
+  }, []); // no deps — reads isSessionInitializingRef via ref
+
+  // Register the callback once (stable reference)
+  useEffect(() => {
+    setNotificationClickCallback(handleNotificationRedirect);
+    return () => setNotificationClickCallback(null);
+  }, [handleNotificationRedirect]);
+
+  // After session finishes initialising, process any pending notification redirect
+  useEffect(() => {
+    if (isSessionInitializing || !session?.user) return;
+    try {
+      const pendingDataStr = localStorage.getItem('pending_notification_data');
+      if (pendingDataStr) {
+        console.log('[App] Session ready — processing deferred notification redirect:', pendingDataStr);
+        localStorage.removeItem('pending_notification_data');
+        const pendingData = JSON.parse(pendingDataStr);
+        handleNotificationRedirect(pendingData);
+      }
+    } catch (err) {
+      console.error('[App] Failed to process deferred notification redirect:', err);
+    }
+  }, [isSessionInitializing, session?.user?.id, handleNotificationRedirect]);
+
   // Add this function to handle invalid screens/404s
   const handleInvalidScreen = () => {
     console.log('[App] Invalid screen detected, redirecting based on role');
@@ -184,12 +246,15 @@ function App() {
   };
 
   const checkOnboardingStatus = async (user, backendState) => {
-    if (!user.email) {
-      setCurrentScreen('addEmailSignup');
+    // If user has neither phone nor email authenticated, route to auth
+    if (!user?.email && !user?.phone) {
+      setCurrentScreen('roleSelection');
       return false;
     }
-    if (!user.phone) {
-      setCurrentScreen('addPhoneLogin');
+    // If profile is incomplete (missing full_name), route to completeProfile screen
+    if (!backendState?.full_name || backendState.full_name.trim().length === 0) {
+      console.log('[App] Profile incomplete -> routing to completeProfile screen');
+      setCurrentScreen('completeProfile');
       return false;
     }
     return true;
@@ -709,14 +774,14 @@ function App() {
     await handleSignupSuccess();
   };
 
-  const handleOTPVerify = async (otp) => {
-    console.log('Verified OTP:', otp);
-    if (isSignupFlow) {
+  const handleOTPVerify = async (otp, isNewUser = false) => {
+    console.log('Verified OTP:', otp, '| isNewUser:', isNewUser, '| isSignupFlow:', isSignupFlow);
+    if (isSignupFlow || isNewUser) {
       // Phone OTP verified as part of signup — finalize profile creation & route
       setIsSignupFlow(false);
       await handleSignupSuccess();
     } else {
-      // Standalone phone login
+      // Standalone phone login — existing user
       await handleLoginSuccess();
     }
   };
@@ -733,157 +798,40 @@ function App() {
     try {
       console.log('handleLoginSuccess called');
 
-      // We need fresh state here because onAuthStateChange might not have finished updating everything
-      // or we want to be explicit about the redirection logic post-login
       const { data: { session: currentSession } } = await supabase.auth.getSession();
-      console.log('Current session:', currentSession?.user?.id);
+      console.log('Current session user:', currentSession?.user?.id);
 
       if (currentSession?.user) {
         let backendState = await fetchStateFromBackend(currentSession.user.id);
         console.log('Backend state:', backendState);
 
-        // If no backend state exists, create a profile for this user
-        if (!backendState || !backendState.role) {
-          console.log('No profile found, creating one...');
+        // Check if profile is incomplete or missing full_name
+        const isComplete = Boolean(backendState && backendState.full_name && backendState.full_name.trim().length > 0);
 
-          // FIXED: Prioritize the currently selected role over user metadata
-          // This ensures driver selection is respected during login
-          const roleToUse = userRole || currentSession.user.user_metadata?.role || 'passenger';
-          const fullName = currentSession.user.user_metadata?.full_name || currentSession.user.email?.split('@')[0] || 'User';
-
-          console.log('Creating profile with role:', roleToUse, '(userRole:', userRole, ', metadata role:', currentSession.user.user_metadata?.role, ')');
-
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .insert({
-              id: currentSession.user.id,
-              full_name: fullName,
-              user_role: roleToUse,
-              last_screen: 'welcome',
-              // Add driver-specific fields if role is driver
-              ...(roleToUse === 'driver' && {
-                driver_status: 'pending',
-                vehicle_type: 'Car'
-              })
-            });
-
-          if (profileError) {
-            console.error('Error creating profile:', profileError);
-            // If profile creation fails, use fallback navigation
-            setUserRole(roleToUse);
-            if (roleToUse === 'driver') {
-              setCurrentScreen('welcome');
-            } else {
-              setCurrentScreen('passengerHome');
-            }
-            return;
-          }
-
-          // Fetch the newly created profile
-          backendState = await fetchStateFromBackend(currentSession.user.id);
-          console.log('Created profile, new backend state:', backendState);
-        }
-
-        // FIXED: Check if there's a role mismatch between selection and stored profile
-        // This handles the case where user previously signed up as one role but is now logging in as another
-        if (backendState?.role && userRole && backendState.role !== userRole) {
-          console.warn('Role mismatch detected! Backend role:', backendState.role, 'Selected role:', userRole);
-          console.log('Updating profile to match selected role:', userRole);
-
-          // Update the profile with the newly selected role
-          const { error: updateError } = await supabase
-            .from('profiles')
-            .update({
-              user_role: userRole,
-              last_screen: userRole === 'driver' ? 'welcome' : 'passengerHome'
-            })
-            .eq('id', currentSession.user.id);
-
-          if (updateError) {
-            console.error('Error updating role:', updateError);
-          } else {
-            // Refresh backend state after update
-            backendState = await fetchStateFromBackend(currentSession.user.id);
-            console.log('Updated backend state:', backendState);
-          }
-        }
-
-        // --- NEW ONBOARDING ROUTER LOGIC ---
-        const isComplete = await checkOnboardingStatus(currentSession.user, backendState);
         if (!isComplete) {
-          console.log('[App] Onboarding router taking over navigation');
+          console.log('[handleLoginSuccess] Incomplete profile detected -> routing to completeProfile');
+          setCurrentScreen('completeProfile');
           return;
         }
 
-        if (backendState?.role) {
-          setUserRole(backendState.role);
-          console.log('User role set to:', backendState.role);
+        // Existing user with completed profile -> navigate based on role
+        const roleToUse = userRole || backendState?.role || 'passenger';
+        setUserRole(roleToUse);
 
-          if (backendState.role === 'driver') {
-            console.log('[handleLoginSuccess] Driver Status:', backendState.driverStatus);
-            console.log('[handleLoginSuccess] Backend State:', backendState);
-
-            if (backendState.driverStatus === 'approved') {
-              console.log('✅ Navigating to driverHome (approved driver)');
-              toast.success("Driver Verified! Redirecting to Home...", { id: 'driver-verified' });
-              setCurrentScreen('driverHome');
-            } else if (backendState.driverStatus === 'pending') {
-              console.log('⏳ Driver verification pending');
-              setCurrentScreen('verificationInProgress');
-            } else if (backendState.driverStatus === 'suspended') {
-              console.log('❌ Driver suspended (negative wallet balance) -> Navigating to driverWallet');
-              setCurrentScreen('driverWallet');
-            } else {
-              // Rejected, Unknown, or New Driver -> Document Upload
-              console.log('❌ Driver not approved (status: ' + backendState.driverStatus + ') -> Navigating to driverDocuments');
-              setCurrentScreen('driverDocuments');
-            }
-          } else {
-            // Passenger logic - support expanding deep link screens globally
-            const safePassengerScreens = ['passengerHome', 'searchTrips', 'tripBooking', 'passengerRideDetails', 'passengerProfile', 'passengerWallet', 'paymentDetails', 'myBookings', 'rideHistory', 'paymentScreen', 'profile'];
-            if (backendState.screen && safePassengerScreens.includes(backendState.screen)) {
-              console.log('Navigating to saved screen:', backendState.screen);
-              setCurrentScreen(backendState.screen);
-            } else {
-              console.log('Navigating to passengerHome');
-              setCurrentScreen('passengerHome');
-            }
-          }
+        if (roleToUse === 'driver') {
+          if (backendState?.driverStatus === 'approved') setCurrentScreen('driverHome');
+          else if (backendState?.driverStatus === 'pending') setCurrentScreen('verificationInProgress');
+          else if (backendState?.driverStatus === 'suspended') setCurrentScreen('driverWallet');
+          else setCurrentScreen('driverDocuments');
         } else {
-          // Fallbacks if no backend state - use the role from role selection
-          console.log('No backend role found, using userRole:', userRole);
-          if (userRole === 'driver') {
-            console.log('Navigating to driverDocuments (driver, no backend state)');
-            setCurrentScreen('driverDocuments');
-          } else if (userRole === 'passenger') {
-            console.log('Navigating to passengerHome (passenger, no backend state)');
-            setCurrentScreen('passengerHome');
-          } else {
-            console.log('Navigating to passengerHome (no role)');
-            setCurrentScreen('passengerHome');
-          }
+          setCurrentScreen('passengerHome');
         }
       } else {
-        // Should not happen if confirmed logged in
-        console.log('No session found, using fallback navigation');
-        if (userRole === 'driver') {
-          setCurrentScreen('welcome');
-        } else if (userRole === 'passenger') {
-          setCurrentScreen('passengerHome');
-        } else {
-          setCurrentScreen('welcome');
-        }
+        setCurrentScreen('roleSelection');
       }
     } catch (error) {
       console.error('Error in handleLoginSuccess:', error);
-      // Fallback navigation on error
-      if (userRole === 'driver') {
-        setCurrentScreen('welcome');
-      } else if (userRole === 'passenger') {
-        setCurrentScreen('passengerHome');
-      } else {
-        setCurrentScreen('welcome');
-      }
+      setCurrentScreen('roleSelection');
     }
   };
 
@@ -1010,6 +958,23 @@ function App() {
               onBack={() => setCurrentScreen('phoneLogin')}
               onVerify={handleOTPVerify}
               isSignupFlow={isSignupFlow}
+            />
+          )}
+
+          {currentScreen === 'completeProfile' && (
+            <CompleteProfile
+              phoneNumber={phoneNumber}
+              userRole={userRole}
+              onBack={() => setCurrentScreen('phoneLogin')}
+              onComplete={async (completedRole) => {
+                const roleToUse = completedRole || userRole || 'passenger';
+                setUserRole(roleToUse);
+                if (roleToUse === 'driver') {
+                  setCurrentScreen('driverDocuments');
+                } else {
+                  setCurrentScreen('passengerHome');
+                }
+              }}
             />
           )}
 
@@ -1260,7 +1225,14 @@ function App() {
             {currentScreen === 'passengerRideDetails' && selectedTrip && (
               <PassengerRideDetails
                 booking={selectedTrip}
-                onBack={() => setCurrentScreen(selectedTrip.status === 'completed' ? 'rideHistory' : 'myBookings')}
+                onBack={() => {
+                  // If launched from a notification, selectedTrip may only have {id, _fromNotification}
+                  // so we can't read .status safely. Default to myBookings.
+                  const goTo = selectedTrip?._fromNotification
+                    ? 'myBookings'
+                    : (selectedTrip?.status === 'completed' ? 'rideHistory' : 'myBookings');
+                  setCurrentScreen(goTo);
+                }}
                 session={session}
               />
             )}

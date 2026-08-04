@@ -151,7 +151,7 @@ const MyBookings = ({ onBack, onViewDetails, onPaymentRequired }) => {
             }
 
             // Fetch bookings with trips + ride_payments (via booking_id FK)
-            const { data, error } = await supabase
+            let { data, error } = await supabase
                 .from('booking_requests')
                 .select(`
                     *,
@@ -166,15 +166,35 @@ const MyBookings = ({ onBack, onViewDetails, onPaymentRequired }) => {
                         status,
                         user_id
                     ),
-                    ride_payments (
-                        id,
-                        total_amount,
-                        payment_status,
-                        cashfree_order_id
-                    )
+                    ride_payments (*)
                 `)
                 .eq('passenger_id', user.id)
                 .order('created_at', { ascending: false });
+
+            // Schema resilience fallback if ride_payments column is missing
+            if (error && (error.code === '42703' || error.message?.includes('does not exist'))) {
+                console.warn('[MyBookings] ride_payments schema error. Retrying without ride_payments join...', error);
+                const fallbackRes = await supabase
+                    .from('booking_requests')
+                    .select(`
+                        *,
+                        trips (
+                            id,
+                            from_location,
+                            to_location,
+                            travel_date,
+                            travel_time,
+                            vehicle_type,
+                            price_per_seat,
+                            status,
+                            user_id
+                        )
+                    `)
+                    .eq('passenger_id', user.id)
+                    .order('created_at', { ascending: false });
+                data = fallbackRes.data;
+                error = fallbackRes.error;
+            }
 
             if (error) throw error;
 
@@ -495,7 +515,7 @@ const MyBookings = ({ onBack, onViewDetails, onPaymentRequired }) => {
                                                                 payment_id: rp?.id,
                                                                 booking_id: booking.id,
                                                                 amount: booking.computed_total, // ✅ clean pre-computed value
-                                                                cashfree_order_id: rp?.cashfree_order_id
+                                                                razorpay_order_id: rp?.razorpay_order_id || rp?.cashfree_order_id
                                                             });
                                                             setShowPaymentModal(true);
                                                         }}

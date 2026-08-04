@@ -29,29 +29,29 @@ const DriverWallet = ({ onBack }) => {
     const [addFundsLoading, setAddFundsLoading] = useState(false);
     const [sdkReady, setSdkReady] = useState(false);
 
-    // Load Cashfree SDK
+    // Load Razorpay SDK
     useEffect(() => {
-        if (window.Cashfree) {
+        if (window.Razorpay) {
             setSdkReady(true);
             return;
         }
-        const existing = document.getElementById('cashfree-sdk');
+        const existing = document.getElementById('razorpay-sdk');
         if (existing) {
             existing.addEventListener('load', () => setSdkReady(true));
-            if (window.Cashfree) setSdkReady(true);
+            if (window.Razorpay) setSdkReady(true);
             return;
         }
 
         const script = document.createElement('script');
-        script.id = 'cashfree-sdk';
-        script.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
+        script.id = 'razorpay-sdk';
+        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
         script.async = true;
         script.onload = () => {
-            console.log('Cashfree SDK loaded successfully');
+            console.log('Razorpay SDK loaded successfully');
             setSdkReady(true);
         };
         script.onerror = () => {
-            console.error('Failed to load Cashfree SDK');
+            console.error('Failed to load Razorpay SDK');
         };
         document.body.appendChild(script);
     }, []);
@@ -124,7 +124,7 @@ const DriverWallet = ({ onBack }) => {
                             
                             let isOnline = b.payment_mode === 'online';
                             if (ridePayment) {
-                                isOnline = !!ridePayment.cashfree_payment_id;
+                                isOnline = !!(ridePayment.razorpay_payment_id || ridePayment.cashfree_payment_id);
                             }
 
                             if (isOnline) {
@@ -315,16 +315,16 @@ const DriverWallet = ({ onBack }) => {
         setAddFundsLoading(true);
         
         try {
-            if (!sdkReady || !window.Cashfree) {
+            if (!sdkReady || !window.Razorpay) {
                 throw new Error('Payment gateway is still loading. Please try again.');
             }
 
             const { data: { session }, error: sessionError } = await supabase.auth.getSession();
             if (sessionError || !session) throw new Error('Authentication error');
 
-            // Call Edge Function
-            const { data, error } = await supabase.functions.invoke('create-wallet-recharge', {
-                body: { amount }
+            // Call Edge Function to create Razorpay recharge order
+            const { data, error } = await supabase.functions.invoke('create-razorpay-order', {
+                body: { amount, type: 'wallet_recharge' }
             });
 
             if (error) {
@@ -342,38 +342,79 @@ const DriverWallet = ({ onBack }) => {
                 throw new Error(data.error || 'Failed to create payment order');
             }
 
-            if (data.stub_mode) {
-                toast.success('Funds setup complete. Check dashboard to verify.');
-                setShowAddFundsModal(false);
-                setAddFundsAmount('');
-                setAddFundsLoading(false);
-                return;
-            }
+            const razorpayKey = data.key_id || import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_TIqp0Gw2vCZY5F';
 
-            // Init Cashfree
-            const cashfree = window.Cashfree({
-                mode: data.environment === 'PRODUCTION' ? 'production' : 'sandbox'
-            });
-
-            const checkoutOptions = {
-                paymentSessionId: data.payment_session_id,
-                redirectTarget: "_modal",
+            const options = {
+                key: razorpayKey,
+                amount: data.amount,
+                currency: data.currency || 'INR',
+                name: 'xpool',
+                description: 'Driver Wallet Top-up',
+                order_id: data.order_id,
+                config: {
+                    display: {
+                        blocks: {
+                            upi_block: {
+                                name: 'Pay via UPI / QR Code',
+                                instruments: [
+                                    {
+                                        method: 'upi',
+                                        flows: ['intent', 'qr']
+                                    }
+                                ]
+                            }
+                        },
+                        sequence: ['block.upi_block', 'block.default'],
+                        preferences: {
+                            show_default_blocks: true
+                        }
+                    }
+                },
+                method: {
+                    upi: true,
+                    card: true,
+                    netbanking: true,
+                    wallet: true,
+                    qr: true
+                },
+                upi: {
+                    flow: 'intent'
+                },
+                handler: async function (response) {
+                    try {
+                        setAddFundsLoading(true);
+                        const { error: verifyErr } = await supabase.functions.invoke('verify-razorpay-payment', {
+                            body: {
+                                razorpay_order_id: response.razorpay_order_id,
+                                razorpay_payment_id: response.razorpay_payment_id,
+                                razorpay_signature: response.razorpay_signature,
+                                recharge_id: data.recharge_id,
+                                type: 'wallet_recharge'
+                            }
+                        });
+                        if (verifyErr) throw verifyErr;
+                        toast.success('Funds added successfully to your wallet!');
+                        setShowAddFundsModal(false);
+                        setAddFundsAmount('');
+                        fetchWalletData();
+                    } catch (err) {
+                        console.error('Wallet recharge verification failed:', err);
+                        toast.error('Payment completed, but verification failed. Wallet will refresh shortly.');
+                    } finally {
+                        setAddFundsLoading(false);
+                    }
+                },
+                modal: {
+                    ondismiss: function () {
+                        toast.error('Wallet recharge cancelled');
+                    }
+                },
+                prefill: data.prefill || {},
+                theme: { color: '#3b82f6' }
             };
 
-            cashfree.checkout(checkoutOptions).then((result) => {
-                if (result.error) {
-                    console.log("User closed the popup or there was an error: ", result.error);
-                    toast.error(result.error.message || 'Payment cancelled or failed');
-                } else if (result.redirect) {
-                    console.log("Payment will be redirected");
-                } else if (result.paymentDetails) {
-                    console.log("Payment completed details", result.paymentDetails);
-                    toast.success('Payment Successful! Wallet will update shortly.');
-                    setShowAddFundsModal(false);
-                    setAddFundsAmount('');
-                    // Webhook triggers the wallet update and supabase realtime refreshes the UI!
-                }
-            });
+            const rzp = new window.Razorpay(options);
+            rzp.open();
 
         } catch (error) {
             console.error('Add funds error:', error);
@@ -809,7 +850,7 @@ const DriverWallet = ({ onBack }) => {
                                 ) : !sdkReady ? (
                                     <span>Loading Gateway...</span>
                                 ) : (
-                                    <span>Pay Securely via Cashfree</span>
+                                    <span>Pay Securely via Razorpay</span>
                                 )}
                             </button>
                         </form>

@@ -6,7 +6,7 @@ const corsHeaders = {
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-serve(async (req) => {
+serve(async (req: Request) => {
     if (req.method === 'OPTIONS') {
         return new Response('ok', { headers: corsHeaders })
     }
@@ -41,13 +41,13 @@ serve(async (req) => {
 
         if (driverErr || !driver) throw new Error('Driver profile not found')
 
-        // 2. Fetch User Details for Cashfree
+        // 2. Fetch User Details
         const { data: profile } = await supabaseAdmin
             .from('profiles')
             .select('phone_number, full_name, email')
             .eq('id', user.id)
             .single()
-            
+
         const driverDetails = {
             phone_number: profile?.phone_number || user.phone,
             full_name: profile?.full_name || 'Driver',
@@ -67,82 +67,60 @@ serve(async (req) => {
 
         if (insertErr || !recharge) throw new Error(`DB Error: ${insertErr?.message}`)
 
-        const appId = (Deno.env.get('CASHFREE_APP_ID') || '').trim()
-        const secretKey = (Deno.env.get('CASHFREE_SECRET_KEY') || '').trim()
-        const env = (Deno.env.get('CASHFREE_ENV') || 'PRODUCTION').trim()
+        const keyId = (Deno.env.get('RAZORPAY_KEY_ID') || Deno.env.get('VITE_RAZORPAY_KEY_ID') || 'rzp_test_TIqp0Gw2vCZY5F').trim()
+        const keySecret = (Deno.env.get('RAZORPAY_KEY_SECRET') || 'YMko9rtxgbb032Xb5oTYujPr').trim()
 
-        if (!appId || !secretKey) {
-            // Stub mode
-            console.warn('CASHFREE API keys missing, running in stub mode')
-            return new Response(
-                JSON.stringify({
-                    success: true,
-                    stub_mode: true,
-                    payment_session_id: 'dummy_session_id',
-                    order_id: `rechg_stub_${recharge.id}`
-                }),
-                { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
-            )
+        if (!keyId || !keySecret) {
+            throw new Error('Razorpay API keys missing in server configuration')
         }
 
-        const baseUrl = env === 'PRODUCTION'
-            ? 'https://api.cashfree.com/pg'
-            : 'https://sandbox.cashfree.com/pg'
+        // Amount in paise
+        const amountInPaise = Math.round(amount * 100)
+        const receiptId = `rechg_${String(recharge.id).replace(/-/g, '').substring(0, 16)}`
 
-        // Prefix order ID with rechg_ so the webhook routes it properly!
-        const orderId = `rechg_${String(recharge.id).replace(/-/g, '').substring(0, 16)}_${Date.now()}`
-
-        // Create new order
-        const requestBody = {
-            order_id: orderId,
-            order_amount: amount,
-            order_currency: 'INR',
-            customer_details: {
-                customer_id: user.id.replace(/-/g, ''), // Cashfree prefers alphanumeric
-                customer_phone: (driverDetails.phone_number?.replace(/\D/g, '').slice(-10)) || '9999999999',
-                customer_name: driverDetails.full_name,
-                customer_email: driverDetails.email
-            },
-            order_meta: {
-                return_url: (() => {
-                    const siteUrl = Deno.env.get('SITE_URL') || req.headers.get('origin') || 'https://xpool.app';
-                    const safeUrl = siteUrl.replace(/^http:\/\//, 'https://');
-                    return `${safeUrl}/driver/wallet`;
-                })()
-            }
-        }
-
-        const response = await fetch(`${baseUrl}/orders`, {
+        const razorpayResponse = await fetch('https://api.razorpay.com/v1/orders', {
             method: 'POST',
             headers: {
-                'x-api-version': '2023-08-01',
-                'x-client-id': appId,
-                'x-client-secret': secretKey,
+                'Authorization': `Basic ${btoa(`${keyId}:${keySecret}`)}`,
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify(requestBody)
+            body: JSON.stringify({
+                amount: amountInPaise,
+                currency: 'INR',
+                receipt: receiptId,
+                notes: {
+                    recharge_id: recharge.id,
+                    type: 'wallet_recharge'
+                }
+            })
         })
 
-        const cashfreeData = await response.json()
+        const razorpayData = await razorpayResponse.json()
 
-        if (!response.ok) {
-            console.error('Cashfree order creation failed:', cashfreeData)
-            throw new Error(cashfreeData.message || 'Payment gateway error')
+        if (!razorpayResponse.ok) {
+            console.error('Razorpay wallet recharge order creation failed:', razorpayData)
+            throw new Error(razorpayData.error?.description || 'Payment order creation failed')
         }
 
-        // Save new order_id in DB
+        // Save razorpay_order_id in DB
         await supabaseAdmin
             .from('wallet_recharges')
-            .update({ cashfree_order_id: orderId })
+            .update({ razorpay_order_id: razorpayData.id })
             .eq('id', recharge.id)
 
         return new Response(
             JSON.stringify({
                 success: true,
-                payment_session_id: cashfreeData.payment_session_id,
-                order_id: orderId,
+                key_id: keyId,
+                order_id: razorpayData.id,
+                amount: razorpayData.amount,
+                currency: razorpayData.currency,
                 recharge_id: recharge.id,
-                environment: env
+                prefill: {
+                    name: driverDetails.full_name,
+                    email: driverDetails.email,
+                    contact: driverDetails.phone_number
+                }
             }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
         )

@@ -9,3 +9,8 @@ dist/
 # android/.gradle/
 # android/local.properties
 .cursor/
+scratch/
+test_aab.zip
+test_unzip/
+supabase/.temp/
+

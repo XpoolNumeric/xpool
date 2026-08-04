@@ -2,6 +2,7 @@
     "appId": "com.xpool.app",
     "appName": "XPool",
     "webDir": "dist",
+    "overrideUserAgent": "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.6261.119 Mobile Safari/537.36",
     "plugins": {
         "StatusBar": {
             "style": "DARK",

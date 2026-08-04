@@ -119,26 +119,41 @@ const PhoneLogin = ({ onBack, onProceed, isSignupFlow = false, isAddMode = false
 
   const invokeEdgeFunction = async (fnName, body) => {
     const { data: { session } } = await supabase.auth.getSession();
+    const clientApiKey = import.meta.env.VITE_START_MESSAGING_API_KEY || '';
 
-    if (session?.access_token) {
-      const { data, error } = await supabase.functions.invoke(fnName, { body });
-      if (error) throw error;
-      return data;
+    const payload = { ...body };
+    if (clientApiKey) {
+      payload.apiKey = clientApiKey;
     }
 
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/${fnName}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-        'apikey': SUPABASE_ANON_KEY,
-      },
-      body: JSON.stringify(body),
-    });
+    const isAddMode = Boolean(body?.isAddMode || body?.type === 'phone_change');
+    const authHeaderToken = (isAddMode && session?.access_token) ? session.access_token : SUPABASE_ANON_KEY;
 
-    const data = await res.json();
-    if (!res.ok) throw new Error(data?.error || `Edge function error (${res.status})`);
-    return data;
+    try {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/${fnName}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authHeaderToken}`,
+          'apikey': SUPABASE_ANON_KEY,
+          ...(clientApiKey ? { 'x-startmessaging-key': clientApiKey } : {})
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const resData = await res.json().catch(() => ({}));
+      if (res.ok && resData && !resData.error) {
+        return resData;
+      }
+
+      const parsedError = typeof resData.error === 'string'
+        ? resData.error
+        : (resData.error?.message || resData.message || `Edge function error (${res.status})`);
+      throw new Error(parsedError);
+    } catch (err) {
+      console.error('[invokeEdgeFunction] error:', err);
+      throw err;
+    }
   };
 
   const handlePhoneChange = (e) => {
@@ -158,16 +173,12 @@ const PhoneLogin = ({ onBack, onProceed, isSignupFlow = false, isAddMode = false
 
     try {
       setLoading(true);
-
-      if (isAddMode) {
-        const { error } = await supabase.auth.updateUser({ phone: formatted });
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.auth.signInWithOtp({ phone: formatted });
-        if (error) throw error;
+      const res = await invokeEdgeFunction('send-phone-otp', { phone: formatted });
+      if (res?.error) {
+        throw new Error(res.error);
       }
 
-      toast.success('OTP sent to your mobile number!');
+      toast.success(res?.message || 'OTP sent to your mobile number!');
       onProceed(formatted);
     } catch (error) {
       console.error('[PhoneLogin] OTP send error:', error);

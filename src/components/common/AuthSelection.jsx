@@ -170,17 +170,17 @@ const AuthSelection = ({ onLogin, onSignup, onBack, onPhoneLogin }) => {
       >
         {/* Auth Buttons */}
         <div className="as-buttons">
-          {/* Phone Button — primary CTA */}
+          {/* Existing User Sign In — Primary CTA */}
           <motion.button
-            className="as-cta as-cta--phone"
-            onClick={onPhoneLogin}
+            className="as-cta as-cta--email"
+            onClick={onLogin}
             variants={itemVariants}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.97 }}
-            aria-label="Continue with phone number"
+            aria-label="Existing User Sign In"
           >
-            <Phone size={20} strokeWidth={2.5} />
-            <span>Continue with Phone Number</span>
+            <Mail size={20} strokeWidth={2.5} />
+            <span>Existing User Sign In (Email / Password)</span>
             <ArrowRight size={18} strokeWidth={2.5} />
           </motion.button>
 
@@ -191,17 +191,17 @@ const AuthSelection = ({ onLogin, onSignup, onBack, onPhoneLogin }) => {
             <span className="as-divider-line" />
           </motion.div>
 
-          {/* Email Button — secondary CTA */}
+          {/* New User Phone OTP Registration — Secondary CTA */}
           <motion.button
-            className="as-cta as-cta--email"
-            onClick={onLogin}
+            className="as-cta as-cta--phone"
+            onClick={onPhoneLogin}
             variants={itemVariants}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.97 }}
-            aria-label="Continue with email"
+            aria-label="New User Registration via Phone OTP"
           >
-            <Mail size={20} strokeWidth={2.5} />
-            <span>Continue with Email</span>
+            <Phone size={20} strokeWidth={2.5} />
+            <span>New User (Phone OTP Registration)</span>
             <ArrowRight size={18} strokeWidth={2.5} />
           </motion.button>
         </div>

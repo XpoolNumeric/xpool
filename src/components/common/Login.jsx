@@ -82,41 +82,80 @@ const TRUST_PILLS = [
 // ─────────────────────────────────────────────────────────────────────────────
 
 const Login = ({ onBack, onSignupClick, onLoginSuccess, role }) => {
-  const [email, setEmail] = useState('');
+  const [emailOrPhone, setEmailOrPhone] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const [emailFocused, setEmailFocused] = useState(false);
+  const [inputFocused, setInputFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
 
-  const emailRef = useRef(null);
+  const inputRef = useRef(null);
 
-  // Auto-focus email input on mount
+  // Auto-focus input on mount
   useEffect(() => {
-    const timer = setTimeout(() => emailRef.current?.focus(), 400);
+    const timer = setTimeout(() => inputRef.current?.focus(), 400);
     return () => clearTimeout(timer);
   }, []);
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!email || !password) return;
+    if (e && e.preventDefault) e.preventDefault();
+    const val = emailOrPhone.trim();
+    if (!val || !password) {
+      toast.error('Please enter your email or phone number and password');
+      return;
+    }
 
     try {
       setLoading(true);
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      let authData;
+      let authError;
 
-      if (error) throw error;
+      const isEmail = val.includes('@');
+
+      if (isEmail) {
+        const res = await supabase.auth.signInWithPassword({
+          email: val,
+          password,
+        });
+        authData = res.data;
+        authError = res.error;
+      } else {
+        // Phone login logic
+        let rawPhone = val.replace(/[^\d+]/g, '');
+        if (!rawPhone.startsWith('+')) {
+          rawPhone = '+91' + rawPhone;
+        }
+
+        let res = await supabase.auth.signInWithPassword({
+          phone: rawPhone,
+          password,
+        });
+
+        // Fallback: if +91 failed, try without prefix
+        if (res.error && rawPhone.startsWith('+91')) {
+          const altPhone = rawPhone.replace('+91', '');
+          const altRes = await supabase.auth.signInWithPassword({
+            phone: altPhone,
+            password,
+          });
+          if (!altRes.error) {
+            res = altRes;
+          }
+        }
+
+        authData = res.data;
+        authError = res.error;
+      }
+
+      if (authError) throw authError;
 
       // Manually save session specifically for WebView manual restoration
-      if (data?.session) {
+      if (authData?.session) {
         console.log('[Login] Checkpoint: Saving manual session bundle to localStorage');
         const sessionBundle = {
-          access_token: data.session.access_token,
-          refresh_token: data.session.refresh_token
+          access_token: authData.session.access_token,
+          refresh_token: authData.session.refresh_token
         };
         localStorage.setItem('xpool_manual_token', JSON.stringify(sessionBundle));
       }
@@ -137,14 +176,15 @@ const Login = ({ onBack, onSignupClick, onLoginSuccess, role }) => {
       if (error.message && (error.message.includes('Failed to fetch') || error.message.includes('Network request failed'))) {
         toast.error('Network Error: Check internet, ad-blockers, or VPN.');
       } else {
-        toast.error(error.message || 'Login failed');
+        toast.error(error.message || 'Invalid email/phone or password');
       }
     } finally {
       setLoading(false);
     }
   };
 
-  const isFormValid = email.includes('@') && password.length >= 6;
+  const isInputValid = emailOrPhone.includes('@') || emailOrPhone.trim().replace(/\D/g, '').length >= 10;
+  const isFormValid = isInputValid && password.length >= 6;
 
   return (
     <div className="login-root">
@@ -203,27 +243,27 @@ const Login = ({ onBack, onSignupClick, onLoginSuccess, role }) => {
             onSubmit={handleSubmit}
           >
             <div className="login-input-group">
-              <label className="login-input-label">Email Address</label>
-              <div className={`login-input-row ${emailFocused ? 'login-focused' : ''} ${email.includes('@') && email.includes('.') ? 'login-valid' : ''}`}>
+              <label className="login-input-label">Email or Phone Number</label>
+              <div className={`login-input-row ${inputFocused ? 'login-focused' : ''} ${isInputValid ? 'login-valid' : ''}`}>
                 <div className="login-icon-box">
                   <Mail size={18} strokeWidth={2.5} />
                 </div>
                 <div className="login-input-divider" />
                 <div className="login-input-wrapper">
                   <input
-                    ref={emailRef}
-                    type="email"
-                    placeholder="name@example.com"
+                    ref={inputRef}
+                    type="text"
+                    placeholder="Email or Phone (+91...)"
                     className="login-input"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    onFocus={() => setEmailFocused(true)}
-                    onBlur={() => setEmailFocused(false)}
+                    value={emailOrPhone}
+                    onChange={(e) => setEmailOrPhone(e.target.value)}
+                    onFocus={() => setInputFocused(true)}
+                    onBlur={() => setInputFocused(false)}
                     required
                   />
                 </div>
                 <AnimatePresence>
-                  {email.includes('@') && email.includes('.') && (
+                  {isInputValid && (
                     <motion.div
                       className="login-input-check"
                       initial={{ scale: 0, opacity: 0 }}
@@ -300,19 +340,12 @@ const Login = ({ onBack, onSignupClick, onLoginSuccess, role }) => {
           <span>Your login is encrypted and protected by standard protocols</span>
         </div>
 
-        <p className="login-footer-text">
-          Don't have an account?{' '}
-          <button type="button" className="login-signup-link" onClick={onSignupClick}>
-            Sign up
-          </button>
-        </p>
-
         <motion.button
           type="button"
           className={`login-cta ${isFormValid ? 'login-cta-ready' : ''}`}
-          disabled={loading || !email || !password}
-          whileHover={{ scale: (loading || !email || !password) ? 1 : 1.02 }}
-          whileTap={{ scale: (loading || !email || !password) ? 1 : 0.97 }}
+          disabled={loading || !emailOrPhone || !password}
+          whileHover={{ scale: (loading || !emailOrPhone || !password) ? 1 : 1.02 }}
+          whileTap={{ scale: (loading || !emailOrPhone || !password) ? 1 : 0.97 }}
           onClick={handleSubmit}
         >
           <span>{loading ? 'Verifying…' : 'Secure Sign In'}</span>

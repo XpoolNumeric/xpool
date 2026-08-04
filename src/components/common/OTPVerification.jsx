@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, ArrowRight, RefreshCw } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
@@ -69,30 +69,59 @@ const OTPVerification = ({ onBack, onVerify, phoneNumber, isSignupFlow = false, 
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
+  const [timer, setTimer] = useState(30);
   const inputRefs = [useRef(), useRef(), useRef(), useRef(), useRef(), useRef()];
+
+  // Countdown timer effect for resend OTP
+  useEffect(() => {
+    let interval = null;
+    if (timer > 0) {
+      interval = setInterval(() => {
+        setTimer((prev) => prev - 1);
+      }, 1000);
+    } else {
+      clearInterval(interval);
+    }
+    return () => clearInterval(interval);
+  }, [timer]);
 
   const invokeEdgeFunction = async (fnName, body) => {
     const { data: { session } } = await supabase.auth.getSession();
+    const clientApiKey = import.meta.env.VITE_START_MESSAGING_API_KEY || '';
 
-    if (session?.access_token) {
-      const { data, error } = await supabase.functions.invoke(fnName, { body });
-      if (error) throw error;
-      return data;
+    const payload = { ...body };
+    if (clientApiKey) {
+      payload.apiKey = clientApiKey;
     }
 
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/${fnName}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-        'apikey': SUPABASE_ANON_KEY,
-      },
-      body: JSON.stringify(body),
-    });
+    const isAddMode = Boolean(body?.isAddMode || body?.type === 'phone_change');
+    const authHeaderToken = (isAddMode && session?.access_token) ? session.access_token : SUPABASE_ANON_KEY;
 
-    const data = await res.json();
-    if (!res.ok) throw new Error(data?.error || `Edge function error (${res.status})`);
-    return data;
+    try {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/${fnName}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authHeaderToken}`,
+          'apikey': SUPABASE_ANON_KEY,
+          ...(clientApiKey ? { 'x-startmessaging-key': clientApiKey } : {})
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const resData = await res.json().catch(() => ({}));
+      if (res.ok && resData && !resData.error) {
+        return resData;
+      }
+
+      const parsedError = typeof resData.error === 'string'
+        ? resData.error
+        : (resData.error?.message || resData.message || `Edge function error (${res.status})`);
+      throw new Error(parsedError);
+    } catch (err) {
+      console.error('[invokeEdgeFunction] error:', err);
+      throw err;
+    }
   };
 
   const handleChange = (index, value) => {
@@ -120,18 +149,29 @@ const OTPVerification = ({ onBack, onVerify, phoneNumber, isSignupFlow = false, 
     }
     try {
       setLoading(true);
-      const { data, error } = await supabase.auth.verifyOtp({
+      const res = await invokeEdgeFunction('verify-phone-otp', {
         phone: phoneNumber,
-        token: otpString,
-        type: isAddMode ? 'phone_change' : 'sms'
+        otp: otpString,
+        isAddMode: Boolean(isAddMode)
       });
-      if (error) throw error;
 
-      toast.success('Mobile number verified!');
-      onVerify(otpString);
+      if (res?.error) {
+        throw new Error(res.error);
+      }
+
+      // If session is returned, set it in Supabase auth client
+      if (res?.session) {
+        const { error: sessionError } = await supabase.auth.setSession(res.session);
+        if (sessionError) {
+          console.warn('[OTPVerification] Session set warning:', sessionError);
+        }
+      }
+
+      toast.success(res?.message || 'Mobile number verified!');
+      onVerify(otpString, res?.isNewUser === true);
     } catch (error) {
       console.error('[OTPVerification] Verify error:', error);
-      toast.error(error.message || 'Invalid OTP. Please try again.');
+      toast.error(error.message || 'Invalid OTP code. Please try again.');
       setOtp(['', '', '', '', '', '']);
       inputRefs[0].current?.focus();
     } finally {
@@ -140,14 +180,19 @@ const OTPVerification = ({ onBack, onVerify, phoneNumber, isSignupFlow = false, 
   };
 
   const handleResendOtp = async () => {
+    if (timer > 0) return;
     try {
       setResending(true);
-      const { error } = await supabase.auth.resend({
-        phone: phoneNumber,
-        type: isAddMode ? 'phone_change' : 'sms',
+      const res = await invokeEdgeFunction('send-phone-otp', {
+        phone: phoneNumber
       });
-      if (error) throw error;
-      toast.success('OTP resent successfully!');
+
+      if (res?.error) {
+        throw new Error(res.error);
+      }
+
+      toast.success(res?.message || 'OTP resent successfully!');
+      setTimer(30); // Reset 30s countdown timer
       setOtp(['', '', '', '', '', '']);
       inputRefs[0].current?.focus();
     } catch (error) {
@@ -157,7 +202,6 @@ const OTPVerification = ({ onBack, onVerify, phoneNumber, isSignupFlow = false, 
       setResending(false);
     }
   };
-
 
   const maskedPhone = phoneNumber
     ? phoneNumber.replace(/(\+\d{2})(\d+)(\d{4})/, (_, a, b, c) => a + '*'.repeat(b.length) + c)
@@ -238,9 +282,15 @@ const OTPVerification = ({ onBack, onVerify, phoneNumber, isSignupFlow = false, 
           <button
             className="otp-resend-btn"
             onClick={handleResendOtp}
-            disabled={resending}
+            disabled={resending || timer > 0}
           >
-            {resending ? <RefreshCw size={14} className="otp-spin-icon" /> : 'Resend'}
+            {resending ? (
+              <RefreshCw size={14} className="otp-spin-icon" />
+            ) : timer > 0 ? (
+              `Resend in ${timer}s`
+            ) : (
+              'Resend'
+            )}
           </button>
         </div>
 

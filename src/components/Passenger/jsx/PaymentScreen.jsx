@@ -11,33 +11,48 @@ const PaymentScreen = ({ paymentData, onBack, onPaymentComplete }) => {
     const [paymentStatus, setPaymentStatus] = useState('pending'); // pending, processing, success, failed
     const [errorMsg, setErrorMsg] = useState('');
     const [sdkReady, setSdkReady] = useState(false);
+    const [userProfile, setUserProfile] = useState(null);
 
-    // Load Cashfree SDK
+    // Fetch user details for prefill
     useEffect(() => {
-        // If already loaded from a previous mount
-        if (window.Cashfree) {
+        const fetchUser = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('full_name, email, phone')
+                    .eq('id', user.id)
+                    .single();
+                setUserProfile(profile || { full_name: user.user_metadata?.full_name || '', email: user.email, phone: user.phone });
+            }
+        };
+        fetchUser();
+    }, []);
+
+    // Load Razorpay SDK
+    useEffect(() => {
+        if (window.Razorpay) {
             setSdkReady(true);
             return;
         }
 
-        const existing = document.getElementById('cashfree-sdk');
+        const existing = document.getElementById('razorpay-sdk');
         if (existing) {
-            // Script tag exists but might still be loading
             existing.addEventListener('load', () => setSdkReady(true));
-            if (window.Cashfree) setSdkReady(true);
+            if (window.Razorpay) setSdkReady(true);
             return;
         }
 
         const script = document.createElement('script');
-        script.id = 'cashfree-sdk';
-        script.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
+        script.id = 'razorpay-sdk';
+        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
         script.async = true;
         script.onload = () => {
-            console.log('Cashfree SDK loaded successfully');
+            console.log('Razorpay SDK loaded successfully');
             setSdkReady(true);
         };
         script.onerror = () => {
-            console.error('Failed to load Cashfree SDK');
+            console.error('Failed to load Razorpay SDK');
             setErrorMsg('Payment gateway failed to load. Please refresh.');
         };
         document.body.appendChild(script);
@@ -53,55 +68,105 @@ const PaymentScreen = ({ paymentData, onBack, onPaymentComplete }) => {
         setErrorMsg('');
 
         try {
-            // 1. Create order via Supabase Edge Function
+            // 1. Create Razorpay order via Supabase Edge Function
             const orderData = await paymentService.createPaymentOrder(paymentData.payment_id, paymentData.booking_id);
 
-            // Important: Save the created payment_id so verifyPayment can use it
             if (orderData.payment_id) {
                 paymentData.payment_id = orderData.payment_id;
             }
 
-            if (orderData.stub_mode) {
-                // Handle stub mode (No API keys provided)
-                setPaymentStatus('processing');
-                setTimeout(() => {
-                    handleSuccess();
-                }, 2000);
-                return;
+            // 2. Verify Razorpay SDK loaded
+            if (!window.Razorpay) {
+                throw new Error('Payment gateway SDK failed to load');
             }
 
-            // 2. Initialize Cashfree
-            if (!window.Cashfree) {
-                throw new Error('Payment gateway failed to load');
-            }
+            const razorpayKey = orderData.key_id || import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_TIqp0Gw2vCZY5F';
 
-            const cashfree = window.Cashfree({
-                mode: orderData.environment === 'PRODUCTION' ? 'production' : 'sandbox'
-            });
+            // 3. Open Razorpay Checkout Modal
+            const options = {
+                key: razorpayKey,
+                amount: orderData.amount,
+                currency: orderData.currency || 'INR',
+                name: 'xpool',
+                description: 'Ride Fare Payment',
+                order_id: orderData.order_id,
+                config: {
+                    display: {
+                        blocks: {
+                            upi_block: {
+                                name: 'Pay via UPI / QR Code',
+                                instruments: [
+                                    {
+                                        method: 'upi',
+                                        flows: ['intent', 'qr']
+                                    }
+                                ]
+                            }
+                        },
+                        sequence: ['block.upi_block', 'block.default'],
+                        preferences: {
+                            show_default_blocks: true
+                        }
+                    }
+                },
+                method: {
+                    upi: true,
+                    card: true,
+                    netbanking: true,
+                    wallet: true,
+                    qr: true
+                },
+                upi: {
+                    flow: 'intent'
+                },
+                handler: async function (response) {
+                    console.log('Razorpay success response:', response);
+                    setVerifying(true);
+                    setPaymentStatus('processing');
 
-            // 3. Open Checkout
-            let checkoutOptions = {
-                paymentSessionId: orderData.payment_session_id,
-                redirectTarget: "_modal",
+                    try {
+                        await paymentService.verifyRazorpayPayment({
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_signature: response.razorpay_signature,
+                            payment_id: orderData.payment_id,
+                            booking_id: paymentData?.booking_id,
+                            type: 'ride_payment'
+                        });
+                        handleSuccess();
+                    } catch (verifyErr) {
+                        console.error('Signature verification error:', verifyErr);
+                        setPaymentStatus('failed');
+                        setErrorMsg(verifyErr.message || 'Payment verification failed.');
+                    } finally {
+                        setVerifying(false);
+                    }
+                },
+                modal: {
+                    ondismiss: function () {
+                        console.log('Razorpay modal dismissed by user');
+                        setPaymentStatus('failed');
+                        setErrorMsg('Payment cancelled.');
+                    }
+                },
+                prefill: {
+                    name: userProfile?.full_name || 'Passenger',
+                    email: userProfile?.email || 'passenger@xpool.app',
+                    contact: userProfile?.phone || ''
+                },
+                theme: {
+                    color: '#10b981'
+                }
             };
 
             setPaymentStatus('processing');
-
-            cashfree.checkout(checkoutOptions).then((result) => {
-                if (result.error) {
-                    // This handles cases like user closing the modal
-                    console.log("User closed the popup or there was an error: ", result.error);
-                    setPaymentStatus('failed');
-                    setErrorMsg(result.error.message || 'Payment cancelled or failed');
-                } else if (result.redirect) {
-                    // Redirection based payment
-                    console.log("Payment will be redirected");
-                } else if (result.paymentDetails) {
-                    // Process payment success directly
-                    console.log("Payment completed details", result.paymentDetails);
-                    verifyPayment(orderData.order_id);
-                }
+            const rzp = new window.Razorpay(options);
+            rzp.on('payment.failed', function (response) {
+                console.error('Razorpay payment failed event:', response.error);
+                setPaymentStatus('failed');
+                setErrorMsg(response.error.description || 'Payment failed.');
             });
+            rzp.open();
 
         } catch (error) {
             console.error('Payment launch error:', error);
@@ -112,31 +177,10 @@ const PaymentScreen = ({ paymentData, onBack, onPaymentComplete }) => {
         }
     };
 
-    const verifyPayment = async (orderId) => {
-        setVerifying(true);
-        try {
-            // Poll DB until webhook is received
-            const isPaid = await paymentService.pollPaymentStatus(paymentData.payment_id);
-
-            if (isPaid) {
-                handleSuccess();
-            } else {
-                setPaymentStatus('failed');
-                setErrorMsg('Payment verification taking too long. Check your trips later to confirm.');
-            }
-        } catch (error) {
-            setPaymentStatus('failed');
-            setErrorMsg('Could not verify payment status automatically.');
-        } finally {
-            setVerifying(false);
-        }
-    };
-
     const handleSuccess = async () => {
         setPaymentStatus('success');
 
         try {
-            // Force the booking/ride to 'completed' status immediately on front-end
             if (paymentData?.booking_id) {
                 await supabase
                     .from('booking_requests')
@@ -157,7 +201,7 @@ const PaymentScreen = ({ paymentData, onBack, onPaymentComplete }) => {
         });
 
         if (onPaymentComplete) {
-            setTimeout(onPaymentComplete, 4000); // give ample time to see success and read the message
+            setTimeout(onPaymentComplete, 4000);
         }
     };
 
@@ -215,7 +259,7 @@ const PaymentScreen = ({ paymentData, onBack, onPaymentComplete }) => {
                             </div>
 
                             <p className="secure-note">
-                                Payments are secured by Cashfree. You can use UPI, Credit/Debit cards, or Netbanking.
+                                Payments are secured by Razorpay. You can use UPI, Credit/Debit cards, Netbanking, or Wallets.
                             </p>
                         </div>
 
@@ -244,14 +288,14 @@ const PaymentScreen = ({ paymentData, onBack, onPaymentComplete }) => {
                             ) : (
                                 <>
                                     <CreditCard size={20} />
-                                    <span>Pay ₹{paymentData.amount} via Cashfree</span>
+                                    <span>Pay ₹{paymentData.amount} via Razorpay</span>
                                 </>
                             )}
                         </button>
 
                         {(paymentStatus === 'processing' || verifying) && (
                             <p className="processing-note text-center mt-4 text-gray-500">
-                                Please do not close this window or press back.
+                                Please do not close this window or press back while payment is processing.
                             </p>
                         )}
                     </>

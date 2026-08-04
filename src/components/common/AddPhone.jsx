@@ -11,6 +11,72 @@ const AddPhone = ({ onComplete }) => {
     const [loading, setLoading] = useState(false);
     const inputRefs = [useRef(), useRef(), useRef(), useRef(), useRef(), useRef()];
 
+    const invokeEdgeFunction = async (fnName, body) => {
+        const { data: { session } } = await supabase.auth.getSession();
+        const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+        const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        const clientApiKey = import.meta.env.VITE_START_MESSAGING_API_KEY || '';
+
+        const payload = { ...body };
+        if (clientApiKey) {
+            payload.apiKey = clientApiKey;
+        }
+
+        try {
+            const { data: fnData, error: fnError } = await supabase.functions.invoke(fnName, {
+                body: payload
+            });
+
+            if (fnError) {
+                let extracted = fnError.message;
+                if (fnError.context && typeof fnError.context.json === 'function') {
+                    try {
+                        const bodyJson = await fnError.context.json();
+                        if (bodyJson) {
+                            extracted = typeof bodyJson.error === 'string'
+                                ? bodyJson.error
+                                : (bodyJson.error?.message || bodyJson.message || JSON.stringify(bodyJson));
+                        }
+                    } catch (_) {}
+                }
+                const finalMessage = typeof extracted === 'object' ? JSON.stringify(extracted) : extracted;
+                throw new Error(finalMessage || 'Edge Function execution error');
+            }
+
+            if (fnData?.error) {
+                const errStr = typeof fnData.error === 'string' ? fnData.error : (fnData.error.message || JSON.stringify(fnData.error));
+                throw new Error(errStr);
+            }
+
+            return fnData;
+        } catch (invokeErr) {
+            try {
+                const res = await fetch(`${SUPABASE_URL}/functions/v1/${fnName}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': session?.access_token ? `Bearer ${session.access_token}` : `Bearer ${SUPABASE_ANON_KEY}`,
+                        'apikey': SUPABASE_ANON_KEY,
+                        ...(clientApiKey ? { 'x-startmessaging-key': clientApiKey } : {})
+                    },
+                    body: JSON.stringify(payload),
+                });
+
+                const resData = await res.json().catch(() => ({}));
+                if (res.ok && resData && !resData.error) {
+                    return resData;
+                }
+
+                const parsedError = typeof resData.error === 'string'
+                    ? resData.error
+                    : (resData.error?.message || resData.message || invokeErr.message || `Edge function error (${res.status})`);
+                throw new Error(parsedError);
+            } catch (fetchErr) {
+                throw new Error(fetchErr?.message || invokeErr.message || 'Failed to connect to edge function');
+            }
+        }
+    };
+
     const handleSendOTP = async (e) => {
         e.preventDefault();
         const trimmed = phoneNumber.trim();
@@ -25,14 +91,12 @@ const AddPhone = ({ onComplete }) => {
 
         try {
             setLoading(true);
-            const { error } = await supabase.auth.updateUser({
-                phone: formatted
-            });
-            
-            // Supabase returns an error if phone is already used by another account
-            if (error) throw error;
+            const res = await invokeEdgeFunction('send-phone-otp', { phone: formatted });
+            if (res?.error) {
+                throw new Error(res.error);
+            }
 
-            toast.success('Verification code sent to your mobile number!');
+            toast.success(res?.message || 'Verification code sent to your mobile number!');
             setStep('verify');
         } catch (error) {
             console.error('[AddPhone Error]', error);
@@ -68,25 +132,20 @@ const AddPhone = ({ onComplete }) => {
 
         try {
             setLoading(true);
-            const { error } = await supabase.auth.verifyOtp({
+            const res = await invokeEdgeFunction('verify-phone-otp', {
                 phone: formattedPhone,
-                token: otpString,
-                type: 'phone_change'
+                otp: otpString,
             });
 
-            if (error) {
-                // Sometimes for new phones without an old phone, it's just 'phone' verification.
-                // If phone_change fails, we can try fallback to 'phone' type.
-                console.warn('phone_change verification failed, trying regular phone verification', error);
-                const { error: fallbackError } = await supabase.auth.verifyOtp({
-                    phone: formattedPhone,
-                    token: otpString,
-                    type: 'sms'
-                });
-                if (fallbackError) throw fallbackError || error;
+            if (res?.error) {
+                throw new Error(res.error);
             }
 
-            toast.success('Phone number verified successfully!');
+            if (res?.session) {
+                await supabase.auth.setSession(res.session);
+            }
+
+            toast.success(res?.message || 'Phone number verified successfully!');
             await onComplete();
         } catch (error) {
             console.error('[AddPhone Verify Error]', error);

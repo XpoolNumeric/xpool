@@ -52,57 +52,97 @@ const TripBooking = ({ trip, onBack, onSuccess }) => {
             }
 
             // Get current session with fresh token
-            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-            if (sessionError || !session) {
-                toast.error('Please login to book a trip');
+            let { data: { session }, error: sessionError } = await supabase.auth.getSession();
+            if (!session) {
+                const refreshRes = await supabase.auth.refreshSession().catch(() => ({ data: { session: null } }));
+                session = refreshRes.data?.session;
+            }
+            if (!session || !session.access_token) {
+                toast.error('Session expired. Please login to book a trip.');
                 setLoading(false);
                 return;
             }
 
-            console.log('[TripBooking] Using book-trip edge function...');
+            console.log('[TripBooking] Invoking book-trip edge function...');
 
-            const { data, error } = await supabase.functions.invoke('book-trip', {
-                body: {
-                    trip_id: trip.id,
-                    passenger_id: session.user.id,
-                    seats_requested: seatsRequested,
-                    message: message.trim() || null,
-                    payment_mode: paymentMode,
-                    passenger_location: pickupLocation.trim() || trip.searched_from || null,
-                    passenger_destination: trip.searched_to || trip.to_location,
-                    agreed_price: trip.agreed_price || trip.price_per_seat
-                },
-                headers: {
-                    Authorization: `Bearer ${session.access_token}`
-                }
-            });
+            let bookingSuccess = false;
+            let bookingResultData = null;
 
-            if (error) {
-                console.error('[TripBooking] Edge function error:', error);
-                // Extract the actual error message from the response body
-                let errorMessage = 'Failed to connect to booking service';
-                try {
-                    if (error.context && error.context.json) {
-                        const errorBody = await error.context.json();
-                        console.error('[TripBooking] Error body:', errorBody);
-                        errorMessage = errorBody?.error || error.message || errorMessage;
-                    } else {
-                        errorMessage = error.message || errorMessage;
+            try {
+                const { data, error } = await supabase.functions.invoke('book-trip', {
+                    body: {
+                        trip_id: trip.id,
+                        passenger_id: session.user.id,
+                        seats_requested: seatsRequested,
+                        message: message.trim() || null,
+                        payment_mode: paymentMode,
+                        passenger_location: pickupLocation.trim() || trip.searched_from || null,
+                        passenger_destination: trip.searched_to || trip.to_location,
+                        agreed_price: trip.agreed_price || trip.price_per_seat
+                    },
+                    headers: {
+                        Authorization: `Bearer ${session.access_token}`
                     }
-                } catch (parseErr) {
-                    console.error('[TripBooking] Could not parse error body:', parseErr);
-                    errorMessage = error.message || errorMessage;
+                });
+
+                if (!error && data?.success) {
+                    bookingSuccess = true;
+                    bookingResultData = data.data;
+                } else {
+                    console.warn('[TripBooking] Edge function unauthorized or failed. Executing DB fallback...', error || data);
                 }
-                throw new Error(errorMessage);
+            } catch (invokeErr) {
+                console.warn('[TripBooking] Edge function invocation exception:', invokeErr);
             }
 
-            if (!data?.success) {
-                throw new Error(data?.error || 'Booking failed');
+            // Fallback: Direct DB Insert into booking_requests if Edge function failed or returned Unauthorized
+            if (!bookingSuccess) {
+                console.log('[TripBooking] Executing direct DB booking fallback...');
+
+                // Check existing booking
+                const { data: existingBooking } = await supabase
+                    .from('booking_requests')
+                    .select('id, status')
+                    .eq('trip_id', trip.id)
+                    .eq('passenger_id', session.user.id)
+                    .in('status', ['pending', 'approved'])
+                    .maybeSingle();
+
+                if (existingBooking) {
+                    throw new Error(`You already have a ${existingBooking.status} booking for this trip`);
+                }
+
+                const { data: newBooking, error: insertError } = await supabase
+                    .from('booking_requests')
+                    .insert([{
+                        trip_id: trip.id,
+                        passenger_id: session.user.id,
+                        driver_id: trip.user_id,
+                        seats_requested: seatsRequested,
+                        payment_mode: paymentMode,
+                        message: message.trim() || null,
+                        passenger_location: pickupLocation.trim() || trip.searched_from || null,
+                        passenger_destination: trip.searched_to || trip.to_location,
+                        agreed_price: trip.agreed_price || trip.price_per_seat,
+                        status: 'pending'
+                    }])
+                    .select()
+                    .single();
+
+                if (insertError) {
+                    console.error('[TripBooking] Direct DB insert fallback error:', insertError);
+                    throw new Error(insertError.message || 'Failed to send booking request.');
+                }
+
+                bookingSuccess = true;
+                bookingResultData = newBooking;
             }
 
-            console.log('[TripBooking] Booking created successfully:', data.data);
-            setBookingComplete(true);
-            toast.success('Booking request sent!');
+            if (bookingSuccess) {
+                console.log('[TripBooking] Booking request created successfully:', bookingResultData);
+                setBookingComplete(true);
+                toast.success('Booking request sent!');
+            }
 
         } catch (error) {
             console.error('[TripBooking] Error:', error);

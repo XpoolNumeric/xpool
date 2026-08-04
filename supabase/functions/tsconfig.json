@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "esnext",
+    "module": "esnext",
+    "moduleResolution": "node",
+    "lib": ["esnext", "dom"],
+    "strict": true,
+    "allowJs": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "https://deno.land/std@0.168.0/http/server.ts": ["deno-shims.d.ts"],
+      "https://deno.land/std@0.203.0/encoding/hex.ts": ["deno-shims.d.ts"],
+      "https://esm.sh/@supabase/supabase-js@2.45.0": ["../../node_modules/@supabase/supabase-js"],
+      "https://esm.sh/@supabase/supabase-js@2.39.0": ["../../node_modules/@supabase/supabase-js"],
+      "https://esm.sh/@supabase/supabase-js@2": ["../../node_modules/@supabase/supabase-js"]
+    }
+  },
+  "include": ["**/*.ts", "deno-shims.d.ts"]
+}

@@ -7,7 +7,62 @@ const corsHeaders = {
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-serve(async (req) => {
+// ── Start Messaging Ride OTP helper ─────────────────────────────────────────
+const START_MESSAGING_BASE_URL = 'https://api.startmessaging.com'
+const DEFAULT_TEMPLATE_ID = '0afbdeb0-785d-4dd0-bd48-365a182df276'
+
+function normaliseE164Phone(phone: string): string {
+    if (!phone) return ''
+    let cleaned = phone.trim().replace(/[^\d+]/g, '')
+    if (!cleaned.startsWith('+')) {
+        const digits = cleaned.replace(/\D/g, '')
+        if (digits.length === 10) {
+            cleaned = `+91${digits}`
+        } else {
+            cleaned = `+${digits}`
+        }
+    }
+    return cleaned
+}
+
+async function sendRideOtpStartMessaging(phone: string, otp: string): Promise<boolean> {
+    const apiKey = Deno.env.get('START_MESSAGING_API_KEY') ||
+        Deno.env.get('STARTMESSAGING_API_KEY') ||
+        Deno.env.get('START_MESSAGING_KEY') ||
+        ''
+    const templateId = Deno.env.get('START_MESSAGING_TEMPLATE_ID') || DEFAULT_TEMPLATE_ID
+    const appName = Deno.env.get('APP_NAME') || 'XPool'
+
+    if (!apiKey) {
+        console.error('[StartMessaging] Missing START_MESSAGING_API_KEY environment variable in Supabase Secrets')
+        return false
+    }
+
+    const phoneNumber = normaliseE164Phone(phone)
+    try {
+        console.log(`[generate-ride-otp] Dispatching Ride OTP ${otp} to ${phoneNumber} via Start Messaging`)
+        const res = await fetch(`${START_MESSAGING_BASE_URL}/otp/send`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-API-Key': apiKey
+            },
+            body: JSON.stringify({
+                phoneNumber,
+                templateId,
+                variables: { otp, appName }
+            })
+        })
+        const data = await res.json().catch(() => ({}))
+        return res.ok && (data.success || data.status === 'success' || data.message || res.status === 200)
+    } catch (err) {
+        console.error('[generate-ride-otp] Ride OTP send error:', err)
+        return false
+    }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
+serve(async (req: Request) => {
     if (req.method === 'OPTIONS') {
         return new Response('ok', { headers: corsHeaders })
     }
@@ -44,9 +99,8 @@ serve(async (req) => {
 
         if (tripError || !trip) throw new Error('Trip not found')
         if (trip.user_id !== user.id) throw new Error('Not authorized — you do not own this trip')
-        // if (trip.status === 'in_progress') throw new Error('Ride already started')
 
-        // 4. Get all approved bookings for this trip (include otp_code to check if already generated)
+        // 4. Get all approved bookings for this trip
         const { data: bookings, error: bookingsError } = await supabaseAdmin
             .from('booking_requests')
             .select('id, passenger_id, seats_requested, otp_code, otp_verified')
@@ -67,44 +121,27 @@ serve(async (req) => {
         for (let i = 0; i < bookings.length; i++) {
             const booking = bookings[i]
 
-            // ✅ FIX: Skip if this passenger already has an OTP and it's not a forced resend
-            // This prevents overwriting an existing OTP that the passenger already received
+            // Skip if already has OTP and not a forced resend
             if (booking.otp_code && !booking.otp_verified && !force_resend) {
                 console.log(`Booking ${booking.id} already has OTP, skipping generation`)
-                results.push({
-                    booking_id: booking.id,
-                    passenger_id: booking.passenger_id,
-                    pickup_order: i + 1,
-                    otp_sent: false,
-                    reason: 'already_has_otp'
-                })
+                results.push({ booking_id: booking.id, passenger_id: booking.passenger_id, pickup_order: i + 1, otp_sent: false, reason: 'already_has_otp' })
                 continue
             }
 
             // Skip already verified passengers
             if (booking.otp_verified) {
                 console.log(`Booking ${booking.id} already verified, skipping`)
-                results.push({
-                    booking_id: booking.id,
-                    passenger_id: booking.passenger_id,
-                    pickup_order: i + 1,
-                    otp_sent: false,
-                    reason: 'already_verified'
-                })
+                results.push({ booking_id: booking.id, passenger_id: booking.passenger_id, pickup_order: i + 1, otp_sent: false, reason: 'already_verified' })
                 continue
             }
 
+            // Generate 4-digit ride OTP
             const otp = Math.floor(1000 + Math.random() * 9000).toString()
 
             // Update booking with OTP
             const { error: updateError } = await supabaseAdmin
                 .from('booking_requests')
-                .update({
-                    otp_code: otp,
-                    otp_verified: false,
-                    otp_attempts: 0,
-                    pickup_order: i + 1
-                })
+                .update({ otp_code: otp, otp_verified: false, otp_attempts: 0, pickup_order: i + 1 })
                 .eq('id', booking.id)
 
             if (updateError) {
@@ -112,7 +149,28 @@ serve(async (req) => {
                 continue
             }
 
-            // Send in-app notification
+            // ── Fetch passenger profile (name + phone) ─────────────────────
+            let passengerName = 'Passenger'
+            let passengerPhone = ''
+            let passengerEmail = ''
+
+            try {
+                const { data: passengerAuth } = await supabaseAdmin.auth.admin.getUserById(booking.passenger_id)
+                passengerEmail = passengerAuth?.user?.email || ''
+
+                const { data: passengerProfile } = await supabaseAdmin
+                    .from('profiles')
+                    .select('full_name, phone')
+                    .eq('id', booking.passenger_id)
+                    .single()
+
+                if (passengerProfile?.full_name) passengerName = passengerProfile.full_name
+                if (passengerProfile?.phone) passengerPhone = passengerProfile.phone
+            } catch (profileErr) {
+                console.error('Profile fetch error (non-critical):', profileErr)
+            }
+
+            // ── In-app notification ────────────────────────────────────────
             try {
                 await supabaseAdmin.from('notifications').insert({
                     user_id: booking.passenger_id,
@@ -125,70 +183,52 @@ serve(async (req) => {
                 console.error('Notification error (non-critical):', notifErr)
             }
 
-            // Send real-time broadcast to passenger
+            // ── Real-time broadcast ────────────────────────────────────────
             try {
                 const channel = supabaseAdmin.channel(`passenger_${booking.passenger_id}`)
                 await channel.send({
                     type: 'broadcast',
                     event: 'ride_otp',
-                    payload: {
-                        trip_id,
-                        booking_id: booking.id,
-                        otp,
-                        pickup_order: i + 1,
-                        message: `Your OTP is: ${otp}`
-                    }
+                    payload: { trip_id, booking_id: booking.id, otp, pickup_order: i + 1, message: `Your OTP is: ${otp}` }
                 })
                 supabaseAdmin.removeChannel(channel)
             } catch (broadcastErr) {
                 console.error('Broadcast error (non-critical):', broadcastErr)
             }
 
-            // Send OTP via Email
-            try {
-                const { data: passengerAuth } = await supabaseAdmin.auth.admin.getUserById(booking.passenger_id)
-                const passengerEmail = passengerAuth?.user?.email || ''
+            // ── Start Messaging SMS (primary channel) ─────────────────────────
+            if (passengerPhone) {
+                try {
+                    const sent = await sendRideOtpStartMessaging(passengerPhone, otp)
+                    console.log(`[generate-ride-otp] Start Messaging OTP ${sent ? 'sent' : 'FAILED'} to ${passengerPhone}`)
+                } catch (smErr) {
+                    console.error('Start Messaging OTP send error (non-critical):', smErr)
+                }
+            } else {
+                console.warn(`[generate-ride-otp] No phone number for passenger ${booking.passenger_id}, skipping SMS dispatch`)
+            }
 
-                let passengerName = 'Passenger'
-                const { data: passengerProfile } = await supabaseAdmin
-                    .from('profiles')
-                    .select('full_name')
-                    .eq('id', booking.passenger_id)
-                    .single()
-                if (passengerProfile?.full_name) passengerName = passengerProfile.full_name
-
-                if (passengerEmail) {
+            // ── Email fallback ─────────────────────────────────────────────
+            if (passengerEmail) {
+                try {
                     await sendEmail({
                         to: passengerEmail,
                         subject: `🔐 Your Ride OTP — ${trip.from_location} → ${trip.to_location}`,
-                        html: rideOtpEmail({
-                            passengerName,
-                            otp,
-                            from: trip.from_location,
-                            to: trip.to_location,
-                            date: travelDate,
-                        }),
+                        html: rideOtpEmail({ passengerName, otp, from: trip.from_location, to: trip.to_location, date: travelDate }),
                     })
+                } catch (emailErr) {
+                    console.error('Email OTP send error (non-critical):', emailErr)
                 }
-            } catch (emailErr) {
-                console.error('Email OTP send error (non-critical):', emailErr)
             }
 
-            results.push({
-                booking_id: booking.id,
-                passenger_id: booking.passenger_id,
-                pickup_order: i + 1,
-                otp_sent: true
-            })
+            results.push({ booking_id: booking.id, passenger_id: booking.passenger_id, pickup_order: i + 1, otp_sent: true })
         }
 
         const generated = results.filter(r => r.otp_sent).length
         return new Response(
             JSON.stringify({
                 success: true,
-                message: generated > 0
-                    ? `OTP generated for ${generated} passenger(s)`
-                    : 'All passengers already have OTPs',
+                message: generated > 0 ? `OTP generated for ${generated} passenger(s)` : 'All passengers already have OTPs',
                 data: results
             }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
@@ -197,7 +237,7 @@ serve(async (req) => {
     } catch (error) {
         console.error('Function Error:', error)
         return new Response(
-            JSON.stringify({ success: false, error: error.message }),
+            JSON.stringify({ success: false, error: (error as any).message }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
         )
     }

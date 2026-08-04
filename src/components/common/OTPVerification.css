@@ -236,6 +236,7 @@
   font-family: var(--otp-font);
   /* Remove arrows from number input if type="number" was used */
   -moz-appearance: textfield;
+  appearance: textfield;
 }
 
 .otp-digit-box::-webkit-outer-spin-button,

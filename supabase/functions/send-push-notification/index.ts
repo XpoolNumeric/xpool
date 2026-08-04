@@ -69,7 +69,7 @@ async function importPrivateKey(pem: string): Promise<CryptoKey> {
   const binary = pemToBinary(pem);
   return await crypto.subtle.importKey(
     "pkcs8",
-    binary,
+    binary as any,
     {
       name: "RSASSA-PKCS1-v1_5",
       hash: "SHA-256",
@@ -130,7 +130,7 @@ async function getFcmAccessToken(serviceAccount: any): Promise<string> {
   return data.access_token;
 }
 
-serve(async (req) => {
+serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -196,9 +196,14 @@ serve(async (req) => {
     }
     if (record.id) customData.notification_id = String(record.id)
     if (notifType) customData.type = String(notifType)
-    if (reference_id) customData.reference_id = String(reference_id)
+    // reference_id is typically the booking_id — expose it under both keys
+    // so the client can always find it regardless of notification type
+    if (reference_id) {
+      customData.reference_id = String(reference_id)
+      customData.booking_id = String(reference_id)
+    }
 
-    const sendPromises = tokenRecords.map(async (tokenRecord) => {
+    const sendPromises = tokenRecords.map(async (tokenRecord: any) => {
       const fcmToken = tokenRecord.fcm_token
       
       const payload = {
@@ -212,8 +217,7 @@ serve(async (req) => {
           android: {
             priority: 'high',
             notification: {
-              sound: 'default',
-              click_action: 'FCM_PLUGIN_ACTIVITY'
+              sound: 'default'
             }
           },
           apns: {
@@ -271,7 +275,7 @@ serve(async (req) => {
   } catch (error) {
     console.error("[Push Webhook Exception]:", error)
     return new Response(
-      JSON.stringify({ success: false, error: error.message }),
+      JSON.stringify({ success: false, error: (error as any).message }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
     )
   }

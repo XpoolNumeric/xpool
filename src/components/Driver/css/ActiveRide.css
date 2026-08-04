@@ -221,9 +221,10 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 12px 0 4px;
-    cursor: grab;
-    touch-action: none;
+    position: relative;
+    padding: 14px 0 8px;
+    cursor: pointer;
+    user-select: none;
     flex-shrink: 0;
 }
 
@@ -232,15 +233,41 @@
 }
 
 .sheet-handle-bar {
-    width: 40px;
+    width: 44px;
     height: 5px;
-    background: #d1d5db;
+    background: #cbd5e1;
     border-radius: 3px;
     transition: background 0.2s;
 }
 
+.sheet-drag-handle:hover .sheet-handle-bar,
 .sheet-drag-handle:active .sheet-handle-bar {
     background: #f59e0b;
+}
+
+.sheet-toggle-arrow-btn {
+    position: absolute;
+    right: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #475569;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    transition: all 0.2s ease;
+}
+
+.sheet-toggle-arrow-btn:hover {
+    background: #f8fafc;
+    color: #0f172a;
+    border-color: #cbd5e1;
 }
 
 .sheet-scroll-content {

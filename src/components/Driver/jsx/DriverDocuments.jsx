@@ -212,101 +212,6 @@ const DrivingLicenseForm = ({ onSubmit, initialData = {} }) => {
     );
 };
 
-const InputField = ({ label, name, type = "text", placeholder, value, onChange }) => (
-    <div className="space-y-1">
-        <label className="text-xs font-bold text-gray-500 uppercase">{label}</label>
-        <input
-            name={name} type={type} placeholder={placeholder} value={value} onChange={onChange}
-            className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-brand-yellow focus:border-transparent outline-none bg-white font-medium transition-all"
-        />
-    </div>
-);
-
-const NameDetailsForm = ({ onSubmit, initialData = {} }) => {
-    const [formData, setFormData] = useState({
-        full_name: initialData.full_name || '',
-        dob: initialData.dob || '',
-        phone: initialData.phone || '',
-        email: initialData.email || '',
-        profession: initialData.profession || '',
-        address: initialData.address || '',
-        city: initialData.city || '',
-        pincode: initialData.pincode || ''
-    });
-    const [photoFile, setPhotoFile] = useState(null);
-    const [loading, setLoading] = useState(false);
-
-    const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
-
-    const handleSubmit = async () => {
-        // Basic validation
-        if (Object.values(formData).some(x => !x) || !photoFile) {
-            toast.error("All fields and photo are required");
-            return;
-        }
-        setLoading(true);
-        try {
-            const photoUrl = await uploadFileToSupabase(photoFile, 'profile_photos');
-            onSubmit({ ...formData, profile_photo_url: photoUrl });
-        } catch (e) { } finally { setLoading(false); }
-    };
-
-    return (
-        <div className="space-y-6 animate-fadeIn">
-            <div className="flex justify-center mb-8">
-                <div className="relative group">
-                    <button
-                        className="w-32 h-32 rounded-full border-4 border-white shadow-xl overflow-hidden relative group-hover:scale-105 transition-transform"
-                        onClick={() => document.getElementById('profile-pic').click()}
-                    >
-                        {photoFile ? (
-                            <img src={URL.createObjectURL(photoFile)} alt="Profile" className="w-full h-full object-cover" />
-                        ) : (
-                            <div className="w-full h-full bg-gray-100 flex flex-col items-center justify-center text-gray-400">
-                                <UploadIcon />
-                                <span className="text-[10px] mt-1 font-bold">ADD PHOTO</span>
-                            </div>
-                        )}
-                        <div className="absolute inset-0 bg-black/10 group-hover:bg-black/20 transition-colors" />
-                    </button>
-                    <div className="absolute bottom-0 right-0 bg-brand-yellow p-2 rounded-full border-2 border-white shadow-md text-black pointer-events-none">
-                        <UploadIcon />
-                    </div>
-                    <input id="profile-pic" type="file" hidden accept="image/*" onChange={(e) => setPhotoFile(e.target.files[0])} />
-                </div>
-            </div>
-
-            <div className="space-y-4">
-                <InputField label="Full Name" name="full_name" placeholder="John Doe" value={formData.full_name} onChange={handleChange} />
-                <div className="grid grid-cols-2 gap-4">
-                    <InputField label="Date of Birth" name="dob" type="date" value={formData.dob} onChange={handleChange} />
-                    <InputField label="Phone" name="phone" type="tel" placeholder="+91 99999..." value={formData.phone} onChange={handleChange} />
-                </div>
-                <InputField label="Email" name="email" type="email" placeholder="john@example.com" value={formData.email} onChange={handleChange} />
-                <InputField label="Profession" name="profession" placeholder="e.g. Software Engineer" value={formData.profession} onChange={handleChange} />
-
-                <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-500 uppercase">Address</label>
-                    <textarea
-                        name="address" rows="2" placeholder="Your permanent address" value={formData.address} onChange={handleChange}
-                        className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-brand-yellow focus:border-transparent outline-none bg-white font-medium resize-none"
-                    />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                    <InputField label="City" name="city" placeholder="Mumbai" value={formData.city} onChange={handleChange} />
-                    <InputField label="Pincode" name="pincode" placeholder="400001" value={formData.pincode} onChange={handleChange} />
-                </div>
-            </div>
-
-            <button className="w-full bg-brand-yellow text-black py-4 rounded-xl font-bold text-lg hover:bg-yellow-400 transition-all active:scale-[0.98] shadow-lg mt-4" disabled={loading} onClick={handleSubmit}>
-                {loading ? <Loader2 className="animate-spin inline mr-2" /> : ''}
-                {loading ? 'Saving...' : 'Save Personal Details'}
-            </button>
-        </div>
-    );
-};
-
 const RCBookForm = ({ onSubmit }) => {
     const [vehicleNo, setVehicleNo] = useState('');
     const [front, setFront] = useState(null);
@@ -406,31 +311,6 @@ const AadhaarPanForm = ({ onSubmit }) => {
     );
 };
 
-const InsuranceForm = ({ onSubmit }) => {
-    const [file, setFile] = useState(null);
-    const [loading, setLoading] = useState(false);
-
-    const handleSubmit = async () => {
-        if (!file) { toast.error("File required"); return; }
-        setLoading(true);
-        try {
-            const url = await uploadFileToSupabase(file, 'insurance');
-            onSubmit({ insurance_url: url });
-        } catch (e) { } finally { setLoading(false); }
-    };
-
-    return (
-        <div className="space-y-6 animate-fadeIn">
-            <div className="flex flex-col items-center">
-                <span className="block text-sm font-medium mb-2">Upload Insurance Document *</span>
-                <button className="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed border-gray-300 rounded-xl hover:bg-gray-50 transition-colors" onClick={() => document.getElementById('ins-doc').click()}><div className="text-gray-400 mb-2"><UploadIcon /></div> <span className="text-xs text-gray-500">{file ? 'Selected' : 'Upload Document'}</span></button>
-                <input id="ins-doc" type="file" hidden accept="image/*,application/pdf" onChange={e => setFile(e.target.files[0])} />
-            </div>
-            <button className="w-full bg-brand-yellow text-black py-4 rounded-xl font-bold text-lg hover:bg-yellow-400 transition-transform active:scale-95 disabled:opacity-70 shadow-lg" disabled={loading} onClick={handleSubmit}>{loading ? 'Uploading...' : 'Submit Insurance'}</button>
-        </div>
-    );
-};
-
 // --- Main Component ---
 
 const DriverDocuments = ({ selectedVehicle = 'Car', onBack, onComplete, onLogout }) => {
@@ -440,10 +320,8 @@ const DriverDocuments = ({ selectedVehicle = 'Car', onBack, onComplete, onLogout
 
     const steps = [
         { id: 'dl', label: 'Driving License', Component: DrivingLicenseForm },
-        { id: 'details', label: 'Name and Details', Component: NameDetailsForm },
         { id: 'rc_book', label: 'RC Book Details', Component: RCBookForm },
         { id: 'id_proof', label: 'Aadhaar or PAN Card', Component: AadhaarPanForm },
-        { id: 'insurance', label: 'Vehicle Insurance', Component: InsuranceForm },
     ];
 
     const handleStepSubmit = async (stepIndex, stepData) => {
@@ -465,7 +343,20 @@ const DriverDocuments = ({ selectedVehicle = 'Car', onBack, onComplete, onLogout
                 const { data: { user } } = await supabase.auth.getUser();
                 if (!user) throw new Error("User not found");
 
-                const finalData = { ...updatedData, user_id: user.id };
+                // Fetch user profile info (name, phone, email) so driver record is complete
+                const { data: profileData } = await supabase
+                    .from('profiles')
+                    .select('full_name, phone, email')
+                    .eq('id', user.id)
+                    .maybeSingle();
+
+                const profileFields = {
+                    full_name: profileData?.full_name || user.user_metadata?.full_name || '',
+                    phone: profileData?.phone || user.phone || '',
+                    email: profileData?.email || user.email || '',
+                };
+
+                const finalData = { ...profileFields, ...updatedData, user_id: user.id, status: 'pending' };
 
                 // Check if a driver record already exists for this user
                 const { data: existingDriver, error: fetchError } = await supabase
@@ -481,12 +372,11 @@ const DriverDocuments = ({ selectedVehicle = 'Car', onBack, onComplete, onLogout
                     // Update existing record
                     const { error: updateError } = await supabase
                         .from('drivers')
-                        .update({ ...updatedData, status: 'pending' }) // Reset to pending on re-submission? Or keep as is? Let's assume pending for now.
+                        .update(finalData)
                         .eq('id', existingDriver.id);
                     error = updateError;
                 } else {
                     // Insert new record
-                    const finalData = { ...updatedData, user_id: user.id, status: 'pending' };
                     const { error: insertError } = await supabase
                         .from('drivers')
                         .insert([finalData]);

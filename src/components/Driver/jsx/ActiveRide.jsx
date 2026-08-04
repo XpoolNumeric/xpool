@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, MapPin, Navigation2, Phone, MessageCircle, AlertTriangle, CheckCircle, Clock, ExternalLink, ShieldAlert, X, User, CreditCard, Banknote, ChevronRight, Loader2 } from 'lucide-react';
+import { ArrowLeft, MapPin, Navigation2, Phone, MessageCircle, AlertTriangle, CheckCircle, Clock, ExternalLink, ShieldAlert, X, User, CreditCard, Banknote, ChevronRight, ChevronUp, ChevronDown, Loader2 } from 'lucide-react';
 import { supabase } from '../../../supabaseClient';
 import toast from 'react-hot-toast';
 import { loadGoogleMapsScript, initializeMap, createRoute, addMarker } from '../../../utils/googleMapsHelper';
@@ -322,7 +322,7 @@ const ActiveRide = ({ trip: initialTrip, onBack }) => {
             el.removeEventListener('touchmove', handleSheetTouchMove);
             el.removeEventListener('touchend', handleSheetTouchEnd);
         };
-    });
+    }, []);
 
     // ── OTP Verification Flow ──────────────────────────────────
     const handleVerifyOtp = async () => {
@@ -664,13 +664,27 @@ const ActiveRide = ({ trip: initialTrip, onBack }) => {
                 ref={sheetRef}
                 className="ride-content"
                 style={{ height: `${sheetHeight}vh` }}
-                onMouseDown={handleSheetTouchStart}
-                onMouseMove={handleSheetTouchMove}
-                onMouseUp={handleSheetTouchEnd}
             >
-                {/* Drag handle */}
-                <div className="sheet-drag-handle">
+                {/* Drag handle & Click Toggle */}
+                <div
+                    className="sheet-drag-handle"
+                    onClick={() => setSheetHeight(prev => prev > 60 ? 45 : 85)}
+                    onMouseDown={handleSheetTouchStart}
+                    onMouseMove={handleSheetTouchMove}
+                    onMouseUp={handleSheetTouchEnd}
+                >
                     <div className="sheet-handle-bar" />
+                    <button
+                        type="button"
+                        className="sheet-toggle-arrow-btn"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setSheetHeight(prev => prev > 60 ? 45 : 85);
+                        }}
+                        aria-label={sheetHeight > 60 ? 'Collapse sheet' : 'Expand sheet'}
+                    >
+                        {sheetHeight > 60 ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
+                    </button>
                 </div>
                 <div className="sheet-scroll-content" ref={scrollContentRef} onScroll={handleContentScroll}>
                 <div className="navigation-card">

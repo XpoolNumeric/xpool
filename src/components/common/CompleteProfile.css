@@ -1,0 +1,415 @@
+/* ==========================================================================
+   CompleteProfile — Xpool Light Warm Premium Theme with Dynamic Green Animations
+   ========================================================================== */
+
+.cp-root {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background-color: #ffffff;
+  color: #0f172a;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow-x: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  padding-bottom: max(24px, env(safe-area-inset-bottom));
+  padding-top: max(16px, env(safe-area-inset-top));
+}
+
+/* ── Light Grid Dot Background ────────────────────────────────────────── */
+.cp-dot-overlay {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(0, 0, 0, 0.04) 1.2px, transparent 1.2px);
+  background-size: 20px 20px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ── Main Container ─────────────────────────────────────────────────────── */
+.cp-top-section {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* ── Header Bar ────────────────────────────────────────────────────────── */
+.cp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 56px;
+  margin-bottom: 8px;
+}
+
+.cp-back-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  color: #1e293b;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  transition: all 0.2s ease;
+}
+
+.cp-back-btn:active {
+  transform: scale(0.94);
+  background: #f8fafc;
+}
+
+.cp-brand-logo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 1.5rem;
+  font-weight: 900;
+  color: #0f172a;
+  letter-spacing: -0.03em;
+}
+
+.cp-brand-logo span {
+  color: #f59e0b;
+}
+
+.cp-step-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  background: #fffbeb;
+  border: 1.5px solid #fde68a;
+  color: #d97706;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+/* ── Top Completion Progress Bar ──────────────────────────────────────── */
+.cp-progress-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.cp-progress-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.775rem;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.cp-progress-track {
+  width: 100%;
+  height: 6px;
+  border-radius: 10px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.cp-progress-fill {
+  height: 100%;
+  border-radius: 10px;
+  background: linear-gradient(90deg, #f59e0b 0%, #10b981 100%);
+  transition: width 0.4s ease;
+}
+
+/* ── Content Layout ───────────────────────────────────────────────────── */
+.cp-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.cp-hero-icon {
+  width: 54px;
+  height: 54px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  box-shadow: 0 10px 20px rgba(245, 158, 11, 0.28);
+  margin-bottom: 14px;
+}
+
+.cp-title {
+  font-size: 1.65rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  margin-bottom: 4px;
+  color: #0f172a;
+  line-height: 1.25;
+}
+
+.cp-title-role {
+  color: #f59e0b;
+}
+
+.cp-subtitle {
+  font-size: 0.9rem;
+  color: #64748b;
+  margin-bottom: 16px;
+  line-height: 1.4;
+}
+
+/* ── Form Controls Card ────────────────────────────────────────────────── */
+.cp-form-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: #ffffff;
+  border: 1.5px solid #f1f5f9;
+  border-radius: 24px;
+  padding: 18px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
+  margin-bottom: 20px;
+}
+
+.cp-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.cp-field-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.cp-field-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.cp-input-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 0 14px;
+  height: 48px;
+  transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.cp-input-row.cp-focused {
+  border-color: #f59e0b;
+  background: #ffffff;
+  box-shadow: 0 0 0 3.5px rgba(245, 158, 11, 0.18);
+}
+
+/* Dynamic Emerald Green State when Valid */
+.cp-input-row.cp-valid {
+  border-color: #10b981 !important;
+  background: #f0fdf4 !important;
+  box-shadow: 0 0 0 3.5px rgba(16, 185, 129, 0.18) !important;
+}
+
+.cp-input-row.cp-error {
+  border-color: #ef4444 !important;
+  background: #fff5f5 !important;
+  box-shadow: 0 0 0 3.5px rgba(239, 68, 68, 0.18) !important;
+}
+
+.cp-input-icon {
+  color: #94a3b8;
+  margin-right: 10px;
+  flex-shrink: 0;
+  transition: color 0.2s ease;
+}
+
+.cp-input-row.cp-valid .cp-input-icon {
+  color: #10b981;
+}
+
+.cp-input-row.cp-focused .cp-input-icon {
+  color: #f59e0b;
+}
+
+.cp-input {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #0f172a;
+  font-size: 0.925rem;
+  font-weight: 500;
+}
+
+.cp-input::placeholder {
+  color: #94a3b8;
+}
+
+/* Green Checkmark Indicator Badge */
+.cp-input-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #10b981;
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 800;
+  margin-left: 8px;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
+}
+
+/* Password Strength Meter */
+.cp-pw-meter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.cp-pw-bar-track {
+  flex: 1;
+  height: 4px;
+  border-radius: 4px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.cp-pw-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease, background-color 0.3s ease;
+}
+
+.cp-pw-meter-text {
+  font-size: 0.725rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+/* ── Gender Selector Pills ────────────────────────────────────────────── */
+.cp-gender-row {
+  display: flex;
+  gap: 8px;
+}
+
+.cp-gender-pill {
+  flex: 1;
+  height: 44px;
+  border-radius: 12px;
+  border: 1.5px solid #e2e8f0;
+  background: #f8fafc;
+  color: #475569;
+  font-weight: 600;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.cp-gender-pill.active {
+  border-color: #10b981;
+  background: #f0fdf4;
+  color: #047857;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.15);
+}
+
+.cp-toggle-pw-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s ease;
+}
+
+.cp-toggle-pw-btn:hover {
+  color: #475569;
+}
+
+.cp-field-error {
+  font-size: 0.75rem;
+  color: #ef4444;
+  font-weight: 600;
+  padding-left: 2px;
+}
+
+/* ── Bottom Section & Submit CTA ─────────────────────────────────────── */
+.cp-bottom-section {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.cp-cta {
+  width: 100%;
+  height: 54px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  border: none;
+  color: #ffffff;
+  font-size: 1.05rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  cursor: pointer;
+  box-shadow: 0 10px 25px -5px rgba(245, 158, 11, 0.4);
+  transition: all 0.2s ease;
+}
+
+.cp-cta.cp-cta-all-valid {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  box-shadow: 0 10px 25px -5px rgba(16, 185, 129, 0.4);
+}
+
+.cp-cta:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.cp-cta:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.cp-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2.5px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: cpSpin 0.8s linear infinite;
+}
+
+@keyframes cpSpin {
+  to { transform: rotate(360deg); }
+}
